@@ -11,6 +11,7 @@ async function run(win,store,app){
     assert.equal(await script('document.querySelectorAll(".message-assistant").length'),1);
     assert.match(await script('document.getElementById("tree").textContent'),/Muse Studio/);
     assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
+    await script('Promise.all([...document.images].map(img=>img.decode())).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     fs.writeFileSync(path.join(output,'macos-overview.png'),(await win.webContents.capturePage()).toPNG());
     win.webContents.send('muse:event',{type:'status',data:{state:'loading',message:'Выгружаем модель'}});await new Promise(r=>setTimeout(r,50));assert.equal(await script('document.getElementById("input").disabled'),true);
     win.webContents.send('muse:event',{type:'status',data:{state:'ready',message:'Готово'}});await new Promise(r=>setTimeout(r,50));assert.equal(await script('document.getElementById("input").disabled'),false);
