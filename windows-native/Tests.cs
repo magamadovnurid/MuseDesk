@@ -36,6 +36,9 @@ namespace MuseDeskNative
                 int result=0;
                 using(MainForm form=new MainForm())
                 {
+                    // CI desktops can be smaller than the three-column fixture.
+                    // Explicit track bounds keep test layout independent of the host monitor.
+                    form.MaximumSize=new Size(2400,1800);
                     form.ShowInTaskbar=false;form.Opacity=0;
                     form.Shown+=delegate {form.BeginInvoke((MethodInvoker)delegate
                     {
@@ -1061,7 +1064,7 @@ namespace MuseDeskNative
                 foreach(var column in columns)
                 {
                     var bar=column.Parent.Controls.OfType<ThinScrollBar>().Single(b=>b.ScrollOwner==column);
-                    Check(bar.Visible && bar.Width==10 && bar.Right==column.Right && bar.Height==column.Height,"Overflow column has an aligned thin scrollbar: "+Array.IndexOf(columns,column));
+                    Check(bar.Visible && bar.Width==10 && bar.Right==column.Right && bar.Height==column.Height,"Overflow column has an aligned thin scrollbar: "+Array.IndexOf(columns,column)+", form="+Size+", center="+center.ClientSize+", visible="+column.Visible+", offset="+column.MaximumOffset+", bar="+bar.Bounds+", column="+column.Bounds);
                     column.UserScrollTo(column.MaximumOffset);Check(-column.AutoScrollPosition.Y==column.MaximumOffset,"Each column reaches its final item: "+Array.IndexOf(columns,column));
                     Check(bar.Thumb.Bottom<=bar.Height,"Scrollbar thumb remains inside its track");
                     column.UserScrollTo(0);
