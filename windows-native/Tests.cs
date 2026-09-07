@@ -34,19 +34,21 @@ namespace MuseDeskNative
             try
             {
                 int result=0;
+                using(Form host=new Form {ShowInTaskbar=false,Opacity=0,Size=new Size(800,600)})
                 using(MainForm form=new MainForm())
                 {
-                    // CI desktops can be smaller than the three-column fixture.
-                    // Explicit track bounds keep test layout independent of the host monitor.
-                    form.MinimumSize=new Size(1340,900);
+                    // Child windows are not constrained by a headless CI desktop's
+                    // top-level tracking bounds; every requested viewport is asserted.
+                    form.TopLevel=false;host.Controls.Add(form);
                     form.ShowInTaskbar=false;form.Opacity=0;
                     form.Shown+=delegate {form.BeginInvoke((MethodInvoker)delegate
                     {
                         try {form.RunReviewTests(output,args.Contains("--live"));}
                         catch(Exception ex){Console.WriteLine("FAIL: "+ex);result=1;}
-                        finally {form.Close();}
+                        finally {form.Close();host.Close();}
                     });};
-                    Application.Run(form);
+                    host.Shown+=delegate {form.Show();};
+                    Application.Run(host);
                 }
                 Console.WriteLine("Test UI shutdown completed.");return result;
             }
@@ -58,9 +60,7 @@ namespace MuseDeskNative
     {
         private void SetReviewSize(Size desired)
         {
-            // A minimum fixture size bypasses the virtual desktop track-size cap.
-            // Change it for each viewport so compact layouts are still exercised.
-            MinimumSize=desired;Size=desired;PerformLayout();
+            Size=desired;PerformLayout();
             Check(Size==desired,"Requested test viewport: "+desired);
         }
         private static void Check(bool condition,string name)
