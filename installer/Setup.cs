@@ -11,7 +11,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Muse Desk Setup")]
-[assembly: AssemblyVersion("1.23.0.0")]
+[assembly: AssemblyVersion("1.24.0.0")]
 namespace MuseDeskSetup
 {
     internal sealed class SoftButton:Button
@@ -36,7 +36,7 @@ namespace MuseDeskSetup
         private readonly string stage;
         private readonly bool preview;
         private Label status,details,hardware,steps;
-        private TextBox destination;
+        private Label destination;
         private SoftButton install,browse,cancel;
         private CheckBox onlyApp;
         private ProgressTrack progress;
@@ -54,7 +54,7 @@ namespace MuseDeskSetup
             status=new Label{Text="Подготовим всё для вас",Font=new Font("Segoe UI",19F),ForeColor=Color.FromArgb(60,60,60),BackColor=Color.White,Location=new Point(256,99),Size=new Size(505,65)};
             details=new Label{Text="Проверяем память, видеокарту и свободное место.",Font=new Font("Segoe UI",10F),ForeColor=Color.FromArgb(117,117,117),BackColor=Color.White,Location=new Point(258,174),Size=new Size(502,67)};
             hardware=new Label{Text="Определение оборудования…",ForeColor=Color.FromArgb(80,80,80),BackColor=Color.White,Location=new Point(258,253),Size=new Size(500,64)};
-            destination=new TextBox{Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","Muse Desk"),ReadOnly=true,BorderStyle=BorderStyle.None,BackColor=Color.FromArgb(247,247,247),Font=new Font("Segoe UI",9F),Location=new Point(258,337),Size=new Size(386,40),Multiline=true};
+            destination=new Label{Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","Muse Desk"),AutoEllipsis=true,TextAlign=ContentAlignment.MiddleLeft,Padding=new Padding(10,0,10,0),BackColor=Color.FromArgb(247,247,247),Font=new Font("Segoe UI",9F),Location=new Point(258,333),Size=new Size(386,38)};
             browse=new SoftButton{Text="Папка…",Location=new Point(658,333),Size=new Size(104,38)};
             onlyApp=new CheckBox{Text="Установить только приложение, без модели",BackColor=Color.White,ForeColor=Color.FromArgb(100,100,100),Font=new Font("Segoe UI",9F),Location=new Point(258,393),Size=new Size(504,26)};
             progress=new ProgressTrack{Location=new Point(258,447),Size=new Size(504,7),BackColor=Color.White};
@@ -98,12 +98,13 @@ namespace MuseDeskSetup
                 worker=new Process{StartInfo=Command((onlyApp.Checked?"-AppOnly ":"")+"-CancelFile \""+stop+"\"")};worker.Start();var errors=worker.StandardError.ReadToEndAsync();
                 string line;while((line=await worker.StandardOutput.ReadLineAsync())!=null){
                     try{var data=json.Deserialize<System.Collections.Generic.Dictionary<string,object>>(line);string step=Convert.ToString(data["stage"]);details.Text=Convert.ToString(data["message"]);progress.Value=Convert.ToInt32(data["percent"]);progress.Invalidate();status.Text=step=="complete"?"Всё готово":step=="error"?"Установка не завершена":step=="verify"?"Проверяем файлы":step=="download"?"Скачиваем компоненты":"Устанавливаем Muse Desk";}catch{}}
-                await Task.Run(()=>worker.WaitForExit());if(worker.ExitCode!=0){string error=await errors;if(!string.IsNullOrWhiteSpace(error))details.Text=error;install.Text="Повторить";install.Enabled=true;}
+                await Task.Run(()=>worker.WaitForExit());if(worker.ExitCode==3010){status.Text="Нужна перезагрузка Windows";install.Text="После перезагрузки";install.Enabled=false;}
+                else if(worker.ExitCode!=0){string error=await errors;if(!string.IsNullOrWhiteSpace(error))details.Text=error;install.Text="Повторить";install.Enabled=true;}
                 else{complete=true;install.Text="Открыть Muse Desk";install.Enabled=true;progress.Value=100;}
             }catch(Exception ex){status.Text="Установка не завершена";details.Text=ex.Message;install.Text="Повторить";install.Enabled=true;}
-            finally{if(worker!=null)worker.Dispose();worker=null;busy=false;cancel.Text="Закрыть";browse.Enabled=!complete;}
+            finally{if(worker!=null)worker.Dispose();worker=null;busy=false;cancel.Text="Закрыть";browse.Enabled=!complete;onlyApp.Enabled=!complete;}
         }
-        internal void SetPreview(){status.Text="Glimmer подходит вашей системе";details.Text="Подберём модель, скачаем проверенные файлы и подготовим локальный помощник. Всё в одном установщике.";hardware.Text="NVIDIA · 24 ГБ VRAM\nRAM: 64 ГБ   ·   Свободно: 120 ГБ (демонстрация)";destination.Text="Папка пользователя · Programs · Muse Desk";destination.Select(0,0);cancel.Focus();progress.Value=42;install.Text="Установить";install.Enabled=false;}
+        internal void SetPreview(){status.Text="Glimmer подходит вашей системе";details.Text="Подберём модель, скачаем проверенные файлы и подготовим локальный помощник. Всё в одном установщике.";hardware.Text="NVIDIA · 24 ГБ VRAM\nRAM: 64 ГБ   ·   Свободно: 120 ГБ (демонстрация)";destination.Text="Папка пользователя · Programs · Muse Desk";cancel.Focus();progress.Value=42;install.Text="Установить";install.Enabled=false;}
     }
     internal static class Program
     {
@@ -111,7 +112,7 @@ namespace MuseDeskSetup
         {
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             string stage=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"MuseDeskInstaller",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);
-            foreach(string name in new[]{"Install.ps1","catalog.json","application.zip"})using(var source=Assembly.GetExecutingAssembly().GetManifestResourceStream(name))using(var target=File.Create(Path.Combine(stage,name)))source.CopyTo(target);
+            foreach(string name in new[]{"Install.ps1","Components.ps1","catalog.json","application.zip"})using(var source=Assembly.GetExecutingAssembly().GetManifestResourceStream(name))using(var target=File.Create(Path.Combine(stage,name)))source.CopyTo(target);
             using(var window=new SetupWindow(stage,args.Contains("--preview")||args.Contains("--screenshot"))){
                 int shot=Array.IndexOf(args,"--screenshot");if(shot>=0 && shot+1<args.Length){window.Shown+=delegate{window.SetPreview();using(var bitmap=new Bitmap(window.Width,window.Height)){window.DrawToBitmap(bitmap,new Rectangle(Point.Empty,window.Size));bitmap.Save(args[shot+1]);}window.Close();};}
                 Application.Run(window);

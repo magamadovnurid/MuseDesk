@@ -1,6 +1,7 @@
 ﻿param([string]$Destination, [switch]$Probe, [switch]$AppOnly, [switch]$LibraryOnly, [switch]$NoShortcuts, [string]$CancelFile)
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'Components.ps1')
 $catalog=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'catalog.json') -Raw | ConvertFrom-Json
 function Send-Status([string]$stage,[string]$message,[int]$percent=-1) {
     $line=@{stage=$stage;message=$message;percent=$percent;utc=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json -Compress
@@ -28,7 +29,13 @@ function Get-Hardware([string]$Target) {
     $cpuArchitecture=$env:PROCESSOR_ARCHITECTURE
     $framework=0;try{$framework=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full').Release}catch{}
     $platform=[Environment]::Is64BitOperatingSystem -and $cpuArchitecture -eq 'AMD64' -and $build -ge 19041 -and $framework -ge 528040
-    $profile=Select-Profile $ram $gpu $compute $free $platform
+    $allocated=0
+    foreach($spec in @($catalog.engine)+@($catalog.files)){
+        $cached=Join-Path $Target 'downloads\ollama.zip'
+        if($spec -ne $catalog.engine){$cached=Join-Path $Target ('data\models\blobs\sha256-'+$spec.sha256)}
+        foreach($candidate in @($cached,($cached+'.part'))){if(Test-Path -LiteralPath $candidate){$allocated+=[math]::Min((Get-Item -LiteralPath $candidate).Length,$spec.bytes)}}
+    }
+    $profile=Select-Profile $ram $gpu $compute ($free+$allocated/1GB) $platform
     return @{ramGiB=$ram;gpuMiB=$gpu;gpu=$gpuName;compute=$compute;freeGiB=$free;profile=$profile;windowsBuild=$build;frameworkRelease=$framework;platform=$platform}
 }
 function Get-VerifiedFile($Spec,[string]$Path) {
@@ -36,14 +43,15 @@ function Get-VerifiedFile($Spec,[string]$Path) {
     if(Test-Path -LiteralPath $Path){
         Send-Status 'verify' ('Проверяю '+[IO.Path]::GetFileName($Path))
         if((Get-Item -LiteralPath $Path).Length -eq $Spec.bytes -and (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -eq $Spec.sha256){return}
-        throw "Файл повреждён: $Path. Переместите его и повторите установку."
+        Remove-Item -LiteralPath $Path -Force
+        Send-Status 'repair' 'Повреждённый файл будет загружен заново'
     }
     $part=$Path+'.part';New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($Path)) -Force | Out-Null
     $curl=Join-Path $env:WINDIR 'System32\curl.exe';if(!(Test-Path -LiteralPath $curl)){throw 'Не найден curl.exe. Требуется актуальная Windows 10/11.'}
-    if(Test-Path -LiteralPath $part){if((Get-Item -LiteralPath $part).Length -gt $Spec.bytes){throw "Повреждён частичный файл: $part"}}
+    if(Test-Path -LiteralPath $part){if((Get-Item -LiteralPath $part).Length -gt $Spec.bytes){Remove-Item -LiteralPath $part -Force}}
     if(!(Test-Path -LiteralPath $part) -or (Get-Item -LiteralPath $part).Length -lt $Spec.bytes){
         $info=[Diagnostics.ProcessStartInfo]::new($curl)
-        $info.Arguments='--fail --location --retry 3 --connect-timeout 30 --speed-limit 1024 --speed-time 120 --silent --show-error --continue-at - --output "'+$part+'" "'+$Spec.url+'"'
+        $info.Arguments='--fail --location --proto =https --proto-redir =https --retry 3 --connect-timeout 30 --speed-limit 1024 --speed-time 120 --silent --show-error --continue-at - --output "'+$part+'" "'+$Spec.url+'"'
         $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
         $info.RedirectStandardError=$true
         $process=[Diagnostics.Process]::Start($info);$errors=$process.StandardError.ReadToEndAsync()
@@ -54,7 +62,7 @@ function Get-VerifiedFile($Spec,[string]$Path) {
         finally{if(!$process.HasExited){$process.Kill();$process.WaitForExit()};$process.Dispose()}
     }
     Check-Cancel;Send-Status 'verify' 'Проверка SHA-256. Это может занять несколько минут.'
-    if((Get-Item -LiteralPath $part).Length -ne $Spec.bytes -or (Get-FileHash -LiteralPath $part -Algorithm SHA256).Hash -ne $Spec.sha256){throw "Контрольная сумма не совпала: $part. Переместите файл и повторите."}
+    if((Get-Item -LiteralPath $part).Length -ne $Spec.bytes -or (Get-FileHash -LiteralPath $part -Algorithm SHA256).Hash -ne $Spec.sha256){Remove-Item -LiteralPath $part -Force;throw 'Контрольная сумма не совпала. Нажмите «Повторить», чтобы скачать файл заново.'}
     Move-Item -LiteralPath $part -Destination $Path
 }
 function Write-Blob([string]$Text,[string]$Directory) {
@@ -89,9 +97,11 @@ try{
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     $script:logPath=Join-Path $Destination 'installation.log'
     @{schema=1;status='installing';profile=$hardware.profile}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $Destination 'musedesk-install.json') -Encoding UTF8
+    Install-SystemComponents $hardware $Destination
     Send-Status 'app' 'Устанавливаю Muse Desk'
     Expand-SafeZip (Join-Path $PSScriptRoot 'application.zip') $Destination
     if(!$AppOnly){
+        Check-EngineRelease $catalog.engine
         $cache=Join-Path $Destination 'downloads';$archive=Join-Path $cache 'ollama.zip'
         Get-VerifiedFile $catalog.engine $archive
         Send-Status 'engine' 'Распаковываю локальный движок'

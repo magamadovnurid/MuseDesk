@@ -1,0 +1,21 @@
+name: Public repository privacy
+on: [push, pull_request, workflow_call]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit history and tracked files
+        shell: powershell
+        run: |
+          python scripts/privacy-audit.py
+          if ($LASTEXITCODE -ne 0) { throw 'Privacy metadata check failed' }
+          Invoke-WebRequest https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip -OutFile "$env:RUNNER_TEMP/gitleaks.zip"
+          if ((Get-FileHash "$env:RUNNER_TEMP/gitleaks.zip").Hash -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') { throw 'Scanner checksum mismatch' }
+          Expand-Archive "$env:RUNNER_TEMP/gitleaks.zip" "$env:RUNNER_TEMP/gitleaks"
+          & "$env:RUNNER_TEMP/gitleaks/gitleaks.exe" git . --redact=100 --no-banner
+          if ($LASTEXITCODE -ne 0) { throw 'Secret scan failed' }

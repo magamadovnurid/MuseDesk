@@ -5,6 +5,8 @@ on:
 permissions:
   contents: read
 jobs:
+  privacy:
+    uses: ./.github/workflows/privacy.yml
   windows:
     runs-on: windows-2022
     timeout-minutes: 20
@@ -69,7 +71,7 @@ jobs:
             dist-macos/*.dmg
             dist-macos/*.zip
   publish:
-    needs: [windows, macos]
+    needs: [windows, macos, privacy]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -7,6 +7,7 @@ const {spawn,execFileSync}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const {profileFor,atomicJSON,GiB}=require('./core.cjs');
 const catalog=require('./catalog.json');
+const {checkEngine}=require('./components.cjs');
 const abort=signal=>{if(signal?.aborted)throw Error('Установка остановлена. Скачанные части сохранены.');};
 async function hashFile(file){const hash=createHash('sha256');for await(const chunk of fs.createReadStream(file))hash.update(chunk);return hash.digest('hex');}
 function run(executable,args,{signal,cwd,env}={}){
@@ -18,13 +19,13 @@ function run(executable,args,{signal,cwd,env}={}){
 }
 async function download(spec,target,{signal,onProgress=()=>{},runner=run}={}){
   abort(signal);await fsp.mkdir(path.dirname(target),{recursive:true});
-  if(fs.existsSync(target)){onProgress({stage:'verify',message:'Проверяем сохранённый файл',percent:-1});if(fs.statSync(target).size===spec.bytes&&await hashFile(target)===spec.sha256)return;throw Error('Контрольная сумма сохранённого файла не совпала: '+target);}
+  if(fs.existsSync(target)){onProgress({stage:'verify',message:'Проверяем сохранённый файл',percent:-1});if(fs.statSync(target).size===spec.bytes&&await hashFile(target)===spec.sha256)return;await fsp.unlink(target);onProgress({stage:'repair',message:'Повреждённый файл будет загружен заново',percent:0});}
   const part=target+'.part';let bytes=fs.existsSync(part)?fs.statSync(part).size:0;
-  if(bytes>spec.bytes)throw Error('Повреждён частичный файл: '+part);
+  if(bytes>spec.bytes){await fsp.unlink(part);bytes=0;}
   const timer=setInterval(()=>{try{bytes=fs.statSync(part).size;onProgress({stage:'download',message:`${(bytes/GiB).toFixed(2)} / ${(spec.bytes/GiB).toFixed(2)} ГБ`,percent:Math.min(99,100*bytes/spec.bytes)});}catch{}},500);
   try{if(bytes<spec.bytes)await runner('/usr/bin/curl',['--fail','--location','--proto','=https','--proto-redir','=https','--retry','3','--connect-timeout','30','--speed-limit','1024','--speed-time','120','--silent','--show-error','--continue-at','-','--output',part,spec.url],{signal});
     abort(signal);onProgress({stage:'verify',message:'Проверяем SHA-256. Это может занять несколько минут.',percent:-1});
-    if(fs.statSync(part).size!==spec.bytes||await hashFile(part)!==spec.sha256)throw Error('Файл не прошёл проверку SHA-256: '+part);
+    if(fs.statSync(part).size!==spec.bytes||await hashFile(part)!==spec.sha256){await fsp.unlink(part);throw Error('Файл не прошёл проверку SHA-256. Нажмите «Повторить», чтобы скачать его заново.');}
     abort(signal);await fsp.rename(part,target);
   }finally{clearInterval(timer);}
 }
@@ -52,6 +53,9 @@ async function install(root,{signal,onProgress=()=>{},engineOnly=false}={}){
   if(!engineOnly&&hardware.profile==='app-only')throw Error('Для Glimmer нужны 32 ГБ объединённой памяти и 40 ГБ свободного места.');
   if(engineOnly&&hardware.freeBytes<2*GiB)throw Error('Для движка нужно 2 ГБ свободного места.');
   const report=s=>{onProgress(s);fs.appendFileSync(path.join(root,'installation.log'),JSON.stringify({...s,utc:new Date().toISOString()})+'\n');};
+  report({stage:'components',message:'Проверяем обновления компонентов',percent:-1});
+  const components=await checkEngine(catalog.engine,{signal});report({stage:'components',message:components.message,percent:-1});
+  atomicJSON(path.join(root,'components.json'),{...components,checkedAt:new Date().toISOString()});
   const archive=path.join(root,'downloads','ollama.tgz');report({stage:'engine',message:'Скачиваем движок для Apple Silicon',percent:-1});
   await download(catalog.engine,archive,{signal,onProgress:report});
   const runtime=path.join(root,'runtime',catalog.engine.version);await fsp.mkdir(runtime,{recursive:true});

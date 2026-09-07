@@ -10,7 +10,7 @@ test('Downloader resumes a partial file, verifies bytes, and reuses verified cac
   const spec={bytes:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),url:'https://example.com/pinned'};let called=0;
   await download(spec,target,{runner:async(exe,args)=>{called++;assert.equal(exe,'/usr/bin/curl');assert.ok(args.includes('--continue-at'));assert.equal(fs.readFileSync(target+'.part').length,5);fs.appendFileSync(target+'.part',bytes.subarray(5));}});
   assert.equal(await hashFile(target),spec.sha256);await download(spec,target,{runner:async()=>{throw Error('Unexpected download');}});assert.equal(called,1);
-  fs.writeFileSync(target,'corrupt');await assert.rejects(()=>download(spec,target),/сумма/);
+  fs.writeFileSync(target,'corrupt');await download(spec,target,{runner:async()=>fs.writeFileSync(target+'.part',bytes)});assert.equal(await hashFile(target),spec.sha256);
 });
 test('Cancellation preserves partial downloads and rejects invalid complete bytes',async()=>{
   const target=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'muse-cancel-')),'file'),controller=new AbortController();const spec={bytes:10,sha256:'0'.repeat(64),url:'https://example.com/file'};

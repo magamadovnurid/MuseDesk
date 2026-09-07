@@ -1,4 +1,4 @@
-param([string]$OutputDirectory=(Join-Path ([Environment]::GetFolderPath('Desktop')) 'Muse Desk Install'))
+﻿param([string]$OutputDirectory=(Join-Path ([Environment]::GetFolderPath('Desktop')) 'Muse Desk Install'))
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 & (Join-Path $PSScriptRoot 'build-windows.ps1')
@@ -12,7 +12,7 @@ Compress-Archive -Path "$staging\*" -DestinationPath $zip -Force
 $framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $setup=Join-Path $OutputDirectory 'MuseDesk-Setup.exe'
-& "$framework\csc.exe" /nologo /target:winexe /platform:x64 /optimize+ "/out:$setup" "/win32icon:$root\release\MuseDesk.ico" "/win32manifest:$root\windows-native\app.manifest" "/reference:$framework\System.dll" "/reference:$framework\System.Core.dll" "/reference:$framework\System.Drawing.dll" "/reference:$framework\System.Windows.Forms.dll" "/reference:$framework\System.Web.Extensions.dll" "/resource:$root\installer\Install.ps1,Install.ps1" "/resource:$root\installer\catalog.json,catalog.json" "/resource:$zip,application.zip" "$root\installer\Setup.cs" "$root\windows-native\Brand.cs"
+& "$framework\csc.exe" /nologo /target:winexe /platform:x64 /optimize+ "/out:$setup" "/win32icon:$root\release\MuseDesk.ico" "/win32manifest:$root\windows-native\app.manifest" "/reference:$framework\System.dll" "/reference:$framework\System.Core.dll" "/reference:$framework\System.Drawing.dll" "/reference:$framework\System.Windows.Forms.dll" "/reference:$framework\System.Web.Extensions.dll" "/resource:$root\installer\Components.ps1,Components.ps1" "/resource:$root\installer\Install.ps1,Install.ps1" "/resource:$root\installer\catalog.json,catalog.json" "/resource:$zip,application.zip" "$root\installer\Setup.cs" "$root\windows-native\Brand.cs"
 if($LASTEXITCODE -ne 0){throw 'Installer build failed'}
 Copy-Item -LiteralPath "$root\windows-native\MuseDesk.exe.config" -Destination ($setup+'.config') -Force
 $hash=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash
