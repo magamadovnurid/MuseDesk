@@ -1,0 +1,27 @@
+{
+  "name": "muse-desk-macos",
+  "productName": "Muse Desk",
+  "version": "1.23.0",
+  "description": "Локальный помощник для Apple Silicon: проекты, чаты и Muse Glimmer",
+  "author": "Muse Desk",
+  "license": "UNLICENSED",
+  "main": "main.cjs",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "test:ui": "electron . --smoke-test",
+    "build": "electron-builder --mac dmg zip --arm64 --publish never"
+  },
+  "devDependencies": {"electron": "44.2.0", "electron-builder": "26.15.3"},
+  "build": {
+    "appId": "app.musedesk.desktop",
+    "directories": {"output": "../dist-macos"},
+    "files": ["*.cjs", "*.html", "*.css", "*.js", "catalog.json", "assets/**/*", "package.json"],
+    "asar": true,
+    "mac": {"category": "public.app-category.productivity", "target": ["dmg", "zip"], "minimumSystemVersion": "14.0", "identity": null, "icon": "assets/icon.png", "extendInfo": {"NSMicrophoneUsageDescription": "Микрофон используется только для выбранных пользователем функций ввода."}},
+    "artifactName": "MuseDesk-${version}-macOS-AppleSilicon.${ext}",
+    "dmg": {"title": "Muse Desk", "window": {"width": 640, "height": 420}, "contents": [{"x": 180, "y": 180}, {"x": 460, "y": 180, "type": "link", "path": "/Applications"}]}
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "files": [
+    {
+      "file": "Muse-Glimmer-30B-heretic.Q4_K_M.gguf",
+      "sha256": "212b27c102e238d10bf72b7f025cb5c05dbb9124f710599d6aca869022324344",
+      "bytes": 16935292256,
+      "url": "https://huggingface.co/mradermacher/Muse-Glimmer-30B-heretic-GGUF/resolve/3ade449bfba050156ac8daffad8e7f7d9a65c6c5/Muse-Glimmer-30B-heretic.Q4_K_M.gguf"
+    },
+    {
+      "file": "Muse-Glimmer-30B-heretic.mmproj-Q8_0.gguf",
+      "sha256": "0ec81cab60f59aed04858d088ec13e86f68606b2aaf39aea777074a5c92446ca",
+      "bytes": 2051685408,
+      "url": "https://huggingface.co/mradermacher/Muse-Glimmer-30B-heretic-GGUF/resolve/3ade449bfba050156ac8daffad8e7f7d9a65c6c5/Muse-Glimmer-30B-heretic.mmproj-Q8_0.gguf"
+    },
+    {
+      "file": "Muse-Glimmer-30B-heretic.mmproj-f16.gguf",
+      "sha256": "ecf13cbfe622f1f321fa31dc0d20337446b129f16e172ba6d6062358052902a1",
+      "bytes": 3847367712,
+      "url": "https://huggingface.co/mradermacher/Muse-Glimmer-30B-heretic-GGUF/resolve/3ade449bfba050156ac8daffad8e7f7d9a65c6c5/Muse-Glimmer-30B-heretic.mmproj-f16.gguf"
+    }
+  ],
+  "source": "mradermacher/Muse-Glimmer-30B-heretic-GGUF",
+  "license": "Apache-2.0",
+  "policy": {
+    "minimumUnifiedGiB": 32,
+    "fullProjectorUnifiedGiB": 64,
+    "minimumFreeGiB": 40,
+    "minimumMacOS": 14,
+    "architecture": "arm64"
+  },
+  "modelName": "acc100/muse-glimmer-heretic:latest",
+  "revision": "3ade449bfba050156ac8daffad8e7f7d9a65c6c5",
+  "engine": {
+    "version": "0.33.3",
+    "url": "https://github.com/ollama/ollama/releases/download/v0.33.3/ollama-darwin.tgz",
+    "bytes": 159236337,
+    "sha256": "342db03df80bb9db84ff64246031bd5f70c09b59ff52fa5cc9aaae3476cc4a9d"
+  },
+  "schema": 1
+}

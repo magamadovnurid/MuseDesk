@@ -1,0 +1,54 @@
+name: macOS Apple Silicon build and tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - name: Install pinned build dependencies
+        working-directory: macos
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          node node_modules/electron/install.js
+      - name: Test model policy, persistence and isolation
+        working-directory: macos
+        run: pnpm test
+      - name: Test actual UI without models
+        working-directory: macos
+        run: pnpm test:ui
+      - name: Verify native arm64 runtime without inference
+        run: node scripts/test-mac-runtime.cjs
+      - name: Build DMG and app ZIP
+        working-directory: macos
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm build
+      - name: Verify package architecture
+        run: |
+          file 'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk'
+          test "$(lipo -archs 'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk')" = arm64
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: MuseDesk-macOS-AppleSilicon
+          path: |
+            dist-macos/*.dmg
+            dist-macos/*.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MuseDesk-macOS-screenshots
+          path: .build/mac-smoke/*.png

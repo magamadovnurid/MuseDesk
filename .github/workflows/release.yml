@@ -1,11 +1,11 @@
-name: Publish Windows preview
+name: Publish Windows and Apple Silicon preview
 on:
   push:
     tags: ['v*']
 permissions:
-  contents: write
+  contents: read
 jobs:
-  release:
+  windows:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
@@ -16,14 +16,74 @@ jobs:
       - name: Test application
         shell: powershell
         run: ./scripts/test-windows.ps1
-      - name: Build installer
+      - name: Build and test installer
         shell: powershell
-        run: ./scripts/build-installer.ps1 -OutputDirectory ./dist
-      - name: Test installer
-        shell: powershell
-        run: ./scripts/test-installer.ps1
-      - name: Publish preview assets
-        shell: pwsh
+        run: |
+          ./scripts/build-installer.ps1 -OutputDirectory ./dist
+          ./scripts/test-installer.ps1
+          Copy-Item ./dist/MuseDesk-Setup.exe ./dist/MuseDesk-Windows-x64-Setup.exe
+          Compress-Archive -Path ./release/* -DestinationPath ./dist/MuseDesk-Windows-x64-App.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            dist/MuseDesk-Windows-x64-Setup.exe
+            dist/MuseDesk-Windows-x64-App.zip
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - name: Install pinned dependencies
+        working-directory: macos
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          node node_modules/electron/install.js
+      - name: Test model policy and UI
+        working-directory: macos
+        run: |
+          pnpm test
+          pnpm test:ui
+      - name: Test actual Apple Silicon engine without models
+        run: node scripts/test-mac-runtime.cjs
+      - name: Build macOS packages
+        working-directory: macos
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm build
+      - name: Verify ARM64 package
+        run: test "$(lipo -archs 'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk')" = arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            dist-macos/*.dmg
+            dist-macos/*.zip
+  publish:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: packages
+      - name: Publish both platforms together
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME ./dist/MuseDesk-Setup.exe ./dist/SHA256.txt --prerelease --title "Muse Desk $env:GITHUB_REF_NAME" --notes-file docs/RELEASE-NOTES.md
+        run: |
+          cd packages
+          sha256sum *.exe *.zip *.dmg > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" ./* --prerelease --title "Muse Desk $GITHUB_REF_NAME · Windows + Apple Silicon" --notes-file ../docs/RELEASE-NOTES.md

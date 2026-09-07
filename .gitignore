@@ -6,6 +6,7 @@
 /review-backup/
 /previews/
 /dist/
+/dist-macos/
 node_modules/
 *.log
 *.tmp
