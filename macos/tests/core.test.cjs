@@ -40,3 +40,7 @@ test('Context trimming keeps complete turns and refuses an oversized latest prom
   assert.throws(()=>tools.messagesFor({messages:[{role:'user',content:'x'.repeat(30000)}]},settings),/велико/);
   const image='A'.repeat(2000000);const vision=tools.messagesFor({messages:[{role:'user',content:'Опиши изображение',images:[image]}]},settings);assert.equal(vision.at(-1).images[0],image);assert.ok(tools.wireCost(vision)<10000);
 });
+test('Approved macOS commands preserve Unicode and stop on cancellation',{skip:process.platform!=='darwin'},async()=>{
+  const project={path:temp()};const result=await tools.execute({function:{name:'run_command',arguments:{command:"printf 'Привет\\n'"}}},{project,approve:async()=>true});assert.match(result.text,/Привет/);
+  const controller=new AbortController();const running=tools.execute({function:{name:'run_command',arguments:{command:'sleep 20'}}},{project,approve:async()=>true,signal:controller.signal});setTimeout(()=>controller.abort(),100);await assert.rejects(()=>running,/остановлена/);
+});

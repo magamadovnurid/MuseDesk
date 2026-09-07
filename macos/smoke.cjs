@@ -12,6 +12,8 @@ async function run(win,store,app){
     assert.match(await script('document.getElementById("tree").textContent'),/Muse Studio/);
     assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
     fs.writeFileSync(path.join(output,'macos-overview.png'),(await win.webContents.capturePage()).toPNG());
+    win.webContents.send('muse:event',{type:'status',data:{state:'loading',message:'Выгружаем модель'}});await new Promise(r=>setTimeout(r,50));assert.equal(await script('document.getElementById("input").disabled'),true);
+    win.webContents.send('muse:event',{type:'status',data:{state:'ready',message:'Готово'}});await new Promise(r=>setTimeout(r,50));assert.equal(await script('document.getElementById("input").disabled'),false);
     await script('document.querySelector("[data-menu=view]").click()');assert.match(await script('document.getElementById("menu-popup").textContent'),/✓/);await script('document.body.click();document.getElementById("menu-popup").classList.add("hidden")');
     const count=store.state.chats.length;await script('document.getElementById("new").click()');await new Promise(r=>setTimeout(r,200));assert.equal(store.state.chats.length,count+1);
     await script('document.getElementById("input").value="строка\\n".repeat(300);document.getElementById("input").dispatchEvent(new Event("input"))');

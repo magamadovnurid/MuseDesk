@@ -17,11 +17,11 @@ function command(command,cwd,signal){return new Promise((resolve,reject)=>{
   const child=spawn('/bin/zsh',['-lc',command],{cwd,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});let output='',ended=false;
   let hardStop;
   const stop=()=>{try{if(process.platform==='win32')child.kill();else process.kill(-child.pid,'SIGTERM');}catch{};if(!hardStop){hardStop=setTimeout(()=>{try{if(process.platform==='win32')child.kill('SIGKILL');else process.kill(-child.pid,'SIGKILL');}catch{}},2000);hardStop.unref();}};
-  const timer=setTimeout(stop,120000);signal?.addEventListener('abort',stop,{once:true});
+  let timedOut=false;const timer=setTimeout(()=>{timedOut=true;stop();},120000);signal?.addEventListener('abort',stop,{once:true});
   const append=text=>{output+=text;if(output.length>1024*1024){output=output.slice(0,1024*1024)+'\n[Лимит вывода]';stop();}};
   for(const stream of [child.stdout,child.stderr]){const decoder=new StringDecoder('utf8');stream.on('data',chunk=>append(decoder.write(chunk)));stream.on('end',()=>append(decoder.end()));}
   const finish=(error,result)=>{if(ended)return;ended=true;clearTimeout(timer);clearTimeout(hardStop);signal?.removeEventListener('abort',stop);error?reject(error):resolve(result);};
-  child.on('error',error=>finish(error));child.on('close',code=>finish(null,{text:output+'\nКод завершения: '+code}));
+  child.on('error',error=>finish(error));child.on('close',code=>finish(signal?.aborted?Error('Команда остановлена'):timedOut?Error('Команда превысила лимит 120 секунд'):null,{text:output+'\nКод завершения: '+code}));
 });}
 async function execute(call,{project,approve,signal}){
   if(!project)throw Error('Для инструментов сначала выберите папку проекта');
