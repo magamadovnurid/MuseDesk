@@ -5,7 +5,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {profileFor,GiB,Store,exclusive,safeProjectPath}=require('../core.cjs');
 const tools=require('../tools.cjs');
-const temp=()=>fs.mkdtempSync(path.join(os.tmpdir(),'musedesk-test-'));
+const temp=()=>fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'musedesk-test-')));
 test('Apple Silicon profiles use unified memory, not Windows VRAM',()=>{
   const h={platform:'darwin',arch:'arm64',major:14,ramBytes:32*GiB,freeBytes:40*GiB};
   assert.equal(profileFor(h),'glimmer-q4-q8');assert.equal(profileFor({...h,ramBytes:36*GiB}),'glimmer-q4-q8');assert.equal(profileFor({...h,ramBytes:64*GiB}),'glimmer-q4-f16');

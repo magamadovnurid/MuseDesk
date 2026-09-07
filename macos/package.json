@@ -20,7 +20,7 @@
     "directories": {"output": "../dist-macos"},
     "files": ["*.cjs", "*.html", "*.css", "*.js", "catalog.json", "assets/**/*", "package.json"],
     "asar": true,
-    "mac": {"category": "public.app-category.productivity", "target": ["dmg", "zip"], "minimumSystemVersion": "14.0", "identity": null, "icon": "assets/icon.png", "extendInfo": {"NSMicrophoneUsageDescription": "Микрофон используется только для выбранных пользователем функций ввода."}},
+    "mac": {"category": "public.app-category.productivity", "target": ["dmg", "zip"], "minimumSystemVersion": "14.0", "identity": "-", "hardenedRuntime": true, "entitlements": "entitlements.plist", "entitlementsInherit": "entitlements.plist", "icon": "assets/icon.png"},
     "artifactName": "MuseDesk-${version}-macOS-AppleSilicon.${ext}",
     "dmg": {"title": "Muse Desk", "window": {"width": 640, "height": 420}, "contents": [{"x": 180, "y": 180}, {"x": 460, "y": 180, "type": "link", "path": "/Applications"}]}
   }

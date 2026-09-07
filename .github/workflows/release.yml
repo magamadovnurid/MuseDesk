@@ -58,7 +58,10 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: pnpm build
       - name: Verify ARM64 package
-        run: test "$(lipo -archs 'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk')" = arm64
+        run: |
+          test "$(lipo -archs 'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk')" = arm64
+          codesign --verify --deep --strict 'dist-macos/mac-arm64/Muse Desk.app'
+          'dist-macos/mac-arm64/Muse Desk.app/Contents/MacOS/Muse Desk' --smoke-test
       - uses: actions/upload-artifact@v4
         with:
           name: macos-release
