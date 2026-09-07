@@ -34,21 +34,16 @@ namespace MuseDeskNative
             try
             {
                 int result=0;
-                using(Form host=new Form {ShowInTaskbar=false,Opacity=0,Size=new Size(800,600)})
                 using(MainForm form=new MainForm())
                 {
-                    // Child windows are not constrained by a headless CI desktop's
-                    // top-level tracking bounds; every requested viewport is asserted.
-                    form.TopLevel=false;host.Controls.Add(form);
                     form.ShowInTaskbar=false;form.Opacity=0;
                     form.Shown+=delegate {form.BeginInvoke((MethodInvoker)delegate
                     {
                         try {form.RunReviewTests(output,args.Contains("--live"));}
                         catch(Exception ex){Console.WriteLine("FAIL: "+ex);result=1;}
-                        finally {form.Close();host.Close();}
+                        finally {form.Close();}
                     });};
-                    host.Shown+=delegate {form.Show();};
-                    Application.Run(host);
+                    Application.Run(form);
                 }
                 Console.WriteLine("Test UI shutdown completed.");return result;
             }

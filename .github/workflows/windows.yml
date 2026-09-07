@@ -11,6 +11,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Configure desktop for UI fixtures
+        shell: powershell
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build native executable
         shell: powershell
         run: ./scripts/build-windows.ps1
