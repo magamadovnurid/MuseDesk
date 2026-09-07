@@ -38,4 +38,5 @@ test('Context trimming keeps complete turns and refuses an oversized latest prom
   const settings={context:8192};const messages=[];for(let i=0;i<8;i++)messages.push({role:'user',content:'q'+i},{role:'assistant',content:'a'.repeat(8000)});messages.push({role:'user',content:'latest'});
   const wire=tools.messagesFor({messages},settings);assert.equal(wire[0].role,'system');assert.equal(wire[1].role,'user');assert.equal(wire.at(-1).content,'latest');assert.ok(wire.length<messages.length);
   assert.throws(()=>tools.messagesFor({messages:[{role:'user',content:'x'.repeat(30000)}]},settings),/велико/);
+  const image='A'.repeat(2000000);const vision=tools.messagesFor({messages:[{role:'user',content:'Опиши изображение',images:[image]}]},settings);assert.equal(vision.at(-1).images[0],image);assert.ok(tools.wireCost(vision)<10000);
 });

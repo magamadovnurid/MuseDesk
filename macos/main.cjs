@@ -57,7 +57,7 @@ async function send({id,text,attachments=[]}){
         let result;try{result=await tools.execute(call,{project,signal:controller.signal,approve:data=>permission({...data,chatTitle:chat.title})});action.status='завершено';}catch(error){result={text:error.message};action.status='ошибка';}
         action.output=result.text;action.result=result.result;const reply={role:'tool',tool_name:call.function.name,content:result.text.slice(0,18000)};wire.push(reply);answer.wire.push(reply);store.save();stateChanged();
       }
-      if(JSON.stringify(wire).length>settings.context*3)throw Error('Достигнут предел контекста инструментов. Начните новый чат.');
+      if(tools.wireCost(wire)>settings.context*3)throw Error('Достигнут предел контекста инструментов. Начните новый чат.');
       if(round===11)throw Error('Достигнут предел 12 шагов. Проверьте выполненные действия.');
     }
   }catch(error){if(answer){answer.failed=true;answer.error=controller.signal.aborted?'Ответ остановлен':error.message;}else throw error;
