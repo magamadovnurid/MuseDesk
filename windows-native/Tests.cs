@@ -38,7 +38,7 @@ namespace MuseDeskNative
                 {
                     // CI desktops can be smaller than the three-column fixture.
                     // Explicit track bounds keep test layout independent of the host monitor.
-                    form.MaximumSize=new Size(2400,1800);
+                    form.MinimumSize=new Size(1340,900);
                     form.ShowInTaskbar=false;form.Opacity=0;
                     form.Shown+=delegate {form.BeginInvoke((MethodInvoker)delegate
                     {
@@ -56,6 +56,13 @@ namespace MuseDeskNative
 
     public sealed partial class MainForm
     {
+        private void SetReviewSize(Size desired)
+        {
+            // A minimum fixture size bypasses the virtual desktop track-size cap.
+            // Change it for each viewport so compact layouts are still exercised.
+            MinimumSize=desired;Size=desired;PerformLayout();
+            Check(Size==desired,"Requested test viewport: "+desired);
+        }
         private static void Check(bool condition,string name)
         {
             if (!condition) throw new InvalidOperationException(name);
@@ -146,7 +153,7 @@ namespace MuseDeskNative
                 Check(icon.GetPixel(0,0).A==0 && stroke.R>220 && stroke.A>240,"Brand icon retains transparent corners and a readable white monogram at "+size+" px");
             }
             CheckButtonSurfaces(output);
-            ShowInTaskbar=false; Opacity=0; Show(); Size=new Size(1340,900); PerformLayout();
+            ShowInTaskbar=false; Opacity=0; Show(); SetReviewSize(new Size(1340,900)); PerformLayout();
             CheckMenuLifetime();
             CheckEngineStartupLifetime();
             CheckModelExclusion();
@@ -224,7 +231,7 @@ namespace MuseDeskNative
             Check(object.ReferenceEquals(cached,messageList.Controls[0]),"Streaming does not rebuild unchanged messages");
             DesignPreview.Capture(this,Path.Combine(output,"native-window.png"));
             CheckStreamingBehavior(output);
-            Size=new Size(940,650); PerformLayout();RenderConversation();
+            SetReviewSize(new Size(940,650)); PerformLayout();RenderConversation();
             Check(input.Width>=500 && input.Height>=24,"Minimum window keeps composer usable");
             string composerDraft=input.Text;input.Clear();int compactHeight=composerHost.Height;
             Check(compactHeight<170,"Empty composer removes the spare line of vertical space");
@@ -311,7 +318,7 @@ namespace MuseDeskNative
                 Check(BuildRequestMessages(loaded,null).Any(x=>GetString(x,"role")=="tool"),"Tool context survives disk serialization");
             }
             Console.WriteLine("ALL CHECKS PASSED");
-            Size=new Size(1340,900);activeChat.messages.Clear();activeChat.title="Новый диалог";RefreshChatList();RenderConversation();
+            SetReviewSize(new Size(1340,900));activeChat.messages.Clear();activeChat.title="Новый диалог";RefreshChatList();RenderConversation();
             connectionTitle.Text="Muse готова";connectionDetail.Text="На вашем компьютере";connectionDot.BackColor=Mint;
             state.settings.model=PreferredModel;PopulateModels(new List<string>{PreferredModel});installButton.Visible=false;
             DesignPreview.Capture(this,Path.Combine(output,"design-welcome.png"));
@@ -320,7 +327,7 @@ namespace MuseDeskNative
             activeChat.messages.Add(new ChatMessage {role="assistant",content="## Давайте начнём с главного\n\nОпишите результат, который хотите получить, и для кого он нужен. Я помогу собрать идею в последовательный план.\n\n**Предлагаю три шага:**\n\n- Сформулировать задачу одним предложением.\n- Выбрать самое важное для первой версии.\n- Превратить это в несколько конкретных действий.\n\nМожете приложить заметки, документ или изображение — разберём их вместе.",tokensPerSecond=25.4});
             RefreshChatList();RenderConversation();DesignPreview.Capture(this,Path.Combine(output,"design-conversation.png"));
             rightRail.Visible=true;LayoutWorkspace();RenderConversation();DesignPreview.Capture(this,Path.Combine(output,"design-capabilities.png"));
-            rightRail.Visible=false;Size=new Size(940,650);RenderConversation();DesignPreview.Capture(this,Path.Combine(output,"design-small.png"));
+            rightRail.Visible=false;SetReviewSize(new Size(940,650));RenderConversation();DesignPreview.Capture(this,Path.Combine(output,"design-small.png"));
             using(SettingsDialog settings=new SettingsDialog(new UserSettings())){settings.Opacity=0;settings.ShowInTaskbar=false;settings.Show();DesignPreview.Capture(settings,Path.Combine(output,"design-settings.png"));}
         }
 
@@ -352,16 +359,16 @@ namespace MuseDeskNative
                 chat.messages.Add(new ChatMessage{role="user",content="сними сам скриншот"});
                 chat.messages.Add(new ChatMessage{role="assistant",content="Размеры панелей, шрифты, отступы, кнопки, иконки и поле ввода.\r\n\r\nНазвания чатов и пункты меню используют один размер шрифта. Папки и кнопки действий собраны из исходных значков интерфейса."});
                 state.chats=new List<ChatSession>{new ChatSession{id="icon-review-project",projectPath=@"C:\Projects\matem",title="Создать локальный веб-сайт"},chat};activeChat=chat;
-                Size=new Size(1540,908);RefreshChatList();RenderConversation();PerformLayout();Application.DoEvents();
+                SetReviewSize(new Size(1540,908));RefreshChatList();RenderConversation();PerformLayout();Application.DoEvents();
                 var labels=Descendants(chatList).OfType<RoundedButton>().Where(b=>b.Text==chat.title||b.Text=="qwenchat"||b.Text=="matem").ToList();
                 Check(labels.Count==3&&labels.All(b=>b.Font.Name=="Segoe UI"&&Math.Abs(b.Font.SizeInPoints-10.5F)<.01F),"Chat names and project names share the original 14 px Segoe UI scale");
                 Check(labels.Where(b=>b.IconName=="folder-open").All(b=>b.IconTint==InterfaceTypography.Secondary),"Project-folder artwork uses the same secondary tint as navigation icons");
                 DesignPreview.Capture(this,Path.Combine(output,"icon-fidelity-window.png"));
-                Size=new Size(940,650);PerformLayout();Application.DoEvents();
+                SetReviewSize(new Size(940,650));PerformLayout();Application.DoEvents();
                 Check(labels.All(b=>b.Height>=b.Font.Height+6),"Larger chat labels retain sufficient line height in the narrow window");
                 DesignPreview.Capture(this,Path.Combine(output,"icon-fidelity-small.png"));
             }
-            finally{state.chats=original;activeChat=current;Size=oldSize;RefreshChatList();RenderConversation();}
+            finally{state.chats=original;activeChat=current;SetReviewSize(oldSize);RefreshChatList();RenderConversation();}
         }
 
         private void CheckUiPolish(string output)
@@ -731,7 +738,7 @@ namespace MuseDeskNative
                     generationCancellation=null;generationChat=null;RefreshChatList();
                     Check(!Descendants(chatList).OfType<ChatActivityIndicator>().Any(),"Chat activity disappears when generation finishes");
                 }
-                activeChat=project;RefreshChatList();Size=new Size(940,650);PerformLayout();Application.DoEvents();
+                activeChat=project;RefreshChatList();SetReviewSize(new Size(940,650));PerformLayout();Application.DoEvents();
                 Check(composerAccessButton.Right<=composerThinkingButton.Left&&composerThinkingButton.PointToScreen(new Point(composerThinkingButton.Width,0)).X<=composerModelButton.PointToScreen(Point.Empty).X,"Access, reasoning and model controls fit the minimum-width composer");
                 DesignPreview.Capture(this,Path.Combine(output,"project-access-small.png"));
             }
@@ -739,7 +746,7 @@ namespace MuseDeskNative
             {
                 generationChat=null;generationCancellation=null;state.chats.Remove(project);activeChat=originalChat;
                 state.settings.toolsEnabled=previousTools;capabilityKey=oldKey;modelToolsSupported=oldSupport;
-                PermissionStore.Save(new List<SavedToolPermission>());Size=new Size(1340,900);RefreshChatList();RenderConversation();
+                PermissionStore.Save(new List<SavedToolPermission>());SetReviewSize(new Size(1340,900));RefreshChatList();RenderConversation();
             }
         }
 
@@ -1054,7 +1061,7 @@ namespace MuseDeskNative
             StoredState saved=state;ChatSession current=activeChat;Size oldSize=Size;bool oldResults=resultsRequested;
             try
             {
-                Size=new Size(1340,900);resultsRequested=true;rightRail.Visible=false;state=new StoredState();activeChat=null;
+                SetReviewSize(new Size(1340,900));resultsRequested=true;rightRail.Visible=false;state=new StoredState();activeChat=null;
                 for(int i=0;i<45;i++)state.chats.Add(new ChatSession {id="scroll-"+i,title="Проверка прокрутки "+i,updatedAt=DateTime.UtcNow.ToString("o")});
                 activeChat=state.chats[0];state.activeChatId=activeChat.id;
                 activeChat.messages.Add(new ChatMessage {role="assistant",content=string.Join("\n",Enumerable.Repeat("Строка длинного ответа для проверки прокрутки.",90)),completedAt=DateTime.UtcNow.ToString("o")});
@@ -1078,7 +1085,7 @@ namespace MuseDeskNative
                     Check(!bar.Visible && column.MaximumOffset==0,"Scrollbar disappears after content shrinks: "+Array.IndexOf(columns,column));
                 }
             }
-            finally{state=saved;activeChat=current;resultsRequested=oldResults;Size=oldSize;RefreshChatList();RenderConversation();}
+            finally{state=saved;activeChat=current;resultsRequested=oldResults;SetReviewSize(oldSize);RefreshChatList();RenderConversation();}
         }
 
         private void CheckStyledDialogs(string output)
@@ -1110,7 +1117,7 @@ namespace MuseDeskNative
             Control brandArea=titleBar.Controls["WindowBrand"],actions=titleBar.Controls["WindowActions"];
             foreach(int testWidth in new[]{940,1340})
             {
-                Width=testWidth;PerformLayout();titleBar.PerformLayout();
+                SetReviewSize(new Size(testWidth,Height));PerformLayout();titleBar.PerformLayout();
                 Check(brandArea.Right<=applicationMenu.Left && applicationMenu.Right<=actions.Left && actions.Right<=titleBar.ClientSize.Width,"Title menu cannot cover brand or window controls at width "+testWidth);
                 Point closeCenter=windowClose.PointToScreen(new Point(windowClose.Width/2,windowClose.Height/2));
                 Check(titleBar.GetChildAtPoint(titleBar.PointToClient(closeCenter))==actions,"Window close button area is not covered by the menu at width "+testWidth);
