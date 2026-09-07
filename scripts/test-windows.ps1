@@ -6,6 +6,7 @@ $speech = Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_MSIL\System.Speech\v
 $output = Join-Path $root ('test-output\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $references = @('System','System.Core','System.Drawing','System.IO.Compression','System.IO.Compression.FileSystem','System.Net.Http','System.Web.Extensions','System.Windows.Forms','System.Xml','System.Xml.Linq') | ForEach-Object { '/reference:' + $framework + '\' + $_ + '.dll' }
+$references += Join-Path $root 'windows-native\ActionLog.cs'
 & "$framework\csc.exe" /nologo /target:exe /platform:x64 /main:MuseDeskNative.TestRunner "/out:$output\MuseDesk.Tests.exe" $references "/reference:$speech" "$root\windows-native\MuseDesk.cs" "$root\windows-native\Support.cs" "$root\windows-native\Design.cs" "$root\windows-native\Brand.cs" "$root\windows-native\WorkspaceDetails.cs" "$root\windows-native\ModernScroll.cs" "$root\windows-native\StreamingView.cs" "$root\windows-native\Permissions.cs" "$root\windows-native\AgentWorkflow.cs" "$root\windows-native\TaskSummary.cs" "$root\windows-native\TextEncoding.cs" "$root\windows-native\ContextBudget.cs" "$root\windows-native\ProjectControls.cs" "$root\windows-native\Preview.cs" "$root\windows-native\Tests.cs" "$root\windows-native\IconAssets.cs" "/resource:$root\windows-native\assets\icons\icons.zip,MuseDesk.Icons.zip"
 if ($LASTEXITCODE -ne 0) { throw 'Tests could not compile.' }
 Copy-Item -LiteralPath "$root\windows-native\MuseDesk.exe.config" -Destination "$output\MuseDesk.Tests.exe.config"

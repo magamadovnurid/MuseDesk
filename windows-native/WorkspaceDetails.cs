@@ -34,7 +34,7 @@ namespace MuseDeskNative
             resultsToggle.Click+=delegate{ToggleResults();};header.Controls.Add(resultsToggle);
             chatMenuButton=MakeIconButton("Меню чата","Действия с текущим чатом");
             ((RoundedButton)chatMenuButton).IconName="more";((RoundedButton)chatMenuButton).IconOnly=true;
-            chatMenuButton.Click+=delegate{ContextMenuStrip menu=CreateChatMenu(activeChat);menu.Closed+=delegate{menu.Dispose();};menu.Show(chatMenuButton,new Point(0,32));};header.Controls.Add(chatMenuButton);
+            chatMenuButton.Click+=delegate{ShowTransientMenu(CreateChatMenu(activeChat),chatMenuButton,new Point(0,32));};header.Controls.Add(chatMenuButton);
             exportButton=MakeButton("Экспорт",Surface,Muted,104,32);((RoundedButton)exportButton).IconName="export";
             exportButton.Font=new Font("Segoe UI",9F);exportButton.Click+=delegate{ExportChat(activeChat);};header.Controls.Add(exportButton);
             Panel folder=new Panel {Name="HeaderFolder",Size=new Size(20,24),Location=new Point(18,12),BackColor=Surface};
@@ -142,7 +142,7 @@ namespace MuseDeskNative
             {
                 string url=link;Uri uri=new Uri(url);
                 bool fetched=(activeChat.sourceUrls??new List<string>()).Contains(url);
-                AddResultRow(uri.Host+uri.AbsolutePath,(fetched?"Загружено инструментом Muse: ":"Ссылка из диалога, не проверена: ")+url,"globe",delegate{try{Process.Start(url);}catch(Exception ex){MessageBox.Show(this,ex.Message,"Ссылка");}});
+                AddResultRow(uri.Host+uri.AbsolutePath,(fetched?"Загружено инструментом Muse: ":"Ссылка из диалога, не проверена: ")+url,"globe",delegate{try{Process.Start(url);}catch(Exception ex){MuseDialog.Show(this,ex.Message,"Ссылка");}});
             }
             List<string> attachments=activeChat.messages.SelectMany(m=>(m.files??new List<string>()).Concat(m.images??new List<string>())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if(attachments.Count>0)
@@ -166,14 +166,14 @@ namespace MuseDeskNative
         private void AddSourceUrl()
         {
             string value=PromptDialog.Show(this,"Добавить ссылку в чат", "https://");if(string.IsNullOrWhiteSpace(value))return;
-            Uri uri;if(!Uri.TryCreate(value,UriKind.Absolute,out uri)||(uri.Scheme!="https"&&uri.Scheme!="http")){MessageBox.Show(this,"Введите полный адрес http:// или https://.","Ссылка");return;}
+            Uri uri;if(!Uri.TryCreate(value,UriKind.Absolute,out uri)||(uri.Scheme!="https"&&uri.Scheme!="http")){MuseDialog.Show(this,"Введите полный адрес http:// или https://.","Ссылка");return;}
             // Manually saved links are references, not evidence of a successful fetch.
             if(activeChat.referenceUrls==null)activeChat.referenceUrls=new List<string>();activeChat.referenceUrls.Add(uri.AbsoluteUri);SaveState();RefreshResults(true);
         }
 
         private void ShowResultFile(string path)
         {
-            if(!File.Exists(path)){MessageBox.Show(this,"Файл перемещён или удалён:\n"+path,"Результат недоступен");return;}
+            if(!File.Exists(path)){MuseDialog.Show(this,"Файл перемещён или удалён:\n"+path,"Результат недоступен");return;}
             try
             {
                 if((IsTextFile(path)||IsOfficeDocument(path)) && new FileInfo(path).Length<=2*1024*1024)
@@ -184,23 +184,112 @@ namespace MuseDeskNative
                 }
                 else Process.Start("explorer.exe","/select,\""+Path.GetFullPath(path)+"\"");
             }
-            catch(Exception ex){MessageBox.Show(this,ex.Message,"Открытие результата");}
+            catch(Exception ex){MuseDialog.Show(this,ex.Message,"Открытие результата");}
         }
 
         private ContextMenuStrip CreateChatMenu(ChatSession chat)
         {
             ContextMenuStrip menu=new ContextMenuStrip();
             menu.Items.Add("Переименовать",null,delegate{RenameChat(chat);});
-            menu.Items.Add("Выбрать папку проекта…",null,delegate{ChooseProject(chat);});
-            if(!string.IsNullOrEmpty(chat.projectPath))menu.Items.Add("Убрать из проекта",null,delegate{chat.projectPath=null;SaveState();RefreshChatList();RenderConversation();});
+            ToolStripMenuItem move=new ToolStripMenuItem("Переместить в проект");
+            foreach(string project in ProjectPaths())
+            {
+                string target=project;
+                var choice=new ToolStripMenuItem(ProjectName(target)){ToolTipText=target,Checked=string.Equals(chat.projectPath,target,StringComparison.OrdinalIgnoreCase)};
+                choice.Click+=delegate{MoveChatToProject(chat,target);};move.DropDownItems.Add(choice);
+            }
+            move.DropDownItems.Add("Другая папка…",null,delegate{ChooseProject(chat);});menu.Items.Add(move);
+            if(!string.IsNullOrEmpty(chat.projectPath))menu.Items.Add("Убрать из проекта",null,delegate{MoveChatToProject(chat,null);});
             menu.Items.Add("Экспортировать Markdown",null,delegate{ExportChat(chat);});
             menu.Items.Add(new ToolStripSeparator());menu.Items.Add("Удалить",null,delegate{DeleteChat(chat);});return menu;
         }
 
         private void ChooseProject(ChatSession chat)
         {
-            using(FolderBrowserDialog dialog=new FolderBrowserDialog {Description="Папка проекта для группировки чатов Muse",ShowNewFolderButton=false})
-            {if(dialog.ShowDialog(this)!=DialogResult.OK)return;chat.projectPath=dialog.SelectedPath;collapsedProjects.Remove(chat.projectPath);SaveState();RefreshChatList();RenderConversation();}
+            using(FolderBrowserDialog dialog=new FolderBrowserDialog {Description="Переместить чат в проект: выберите рабочую папку",ShowNewFolderButton=true})
+            {if(dialog.ShowDialog(this)!=DialogResult.OK)return;MoveChatToProject(chat,dialog.SelectedPath);}
+        }
+
+        private static string ProjectName(string path)
+        { string name=Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar));return string.IsNullOrEmpty(name)?path:name; }
+
+        private List<string> ProjectPaths()
+        {
+            state.projects=state.projects.Concat(state.chats.Select(c=>c.projectPath)).Where(p=>!string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return state.projects.ToList();
+        }
+
+        private void RegisterProject(string path)
+        {if(!state.projects.Contains(path,StringComparer.OrdinalIgnoreCase))state.projects.Add(path);}
+
+        private void AddProject()
+        {using(var dialog=BuildProjectDialog())dialog.ShowDialog(this);}
+
+        private Form BuildProjectDialog()
+        {
+            var dialog=new Form {Text="Добавить проект",ClientSize=new Size(540,280),FormBorderStyle=FormBorderStyle.FixedDialog,StartPosition=FormStartPosition.CenterParent,MaximizeBox=false,MinimizeBox=false,BackColor=Ink,Font=InterfaceTypography.Sidebar()};
+            var title=new Label {Text="Добавить проект",Font=new Font("Segoe UI",16F),ForeColor=TextInk,AutoSize=true,Location=new Point(24,20)};
+            var note=new Label {Text="Выберите папку. Её имя станет названием проекта.",ForeColor=Muted,Location=new Point(24,59),Size=new Size(490,30)};
+            var card=new RoundedComposerPanel {Location=new Point(24,101),Size=new Size(492,82),Radius=12,BorderColor=Line,BackColor=Surface};
+            var folderName=new Label {Text="Папка не выбрана",ForeColor=TextInk,Font=InterfaceTypography.Sidebar(),Location=new Point(16,15),Size=new Size(325,24),AutoEllipsis=true};
+            var folderPath=new Label {Text="Чаты будут храниться в этом проекте",ForeColor=Muted,Font=InterfaceTypography.Caption(),Location=new Point(16,45),Size=new Size(455,22),AutoEllipsis=true};
+            var browse=MakeButton("Выбрать…",Ink,TextInk,105,32);browse.Location=new Point(371,10);
+            card.Controls.AddRange(new Control[]{folderName,folderPath,browse});
+            var add=MakeButton("Добавить проект",Color.Black,Color.White,152,36);add.Location=new Point(364,216);add.Enabled=false;
+            var cancel=MakeButton("Отмена",Ink,TextInk,100,36);cancel.Location=new Point(252,216);cancel.DialogResult=DialogResult.Cancel;
+            string selected=null;
+            browse.Click+=delegate{using(var picker=new FolderBrowserDialog {Description="Выберите существующую папку проекта",ShowNewFolderButton=false}){if(picker.ShowDialog(dialog)!=DialogResult.OK)return;selected=picker.SelectedPath;folderName.Text=ProjectName(selected);folderPath.Text=selected;add.Enabled=true;}};
+            add.Click+=delegate{try{AttachExistingProject(selected);dialog.DialogResult=DialogResult.OK;dialog.Close();}catch(Exception ex){MuseDialog.Show(dialog,ex.Message,"Не удалось добавить проект",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
+            dialog.Controls.AddRange(new Control[]{title,note,card,add,cancel});dialog.AcceptButton=add;dialog.CancelButton=cancel;return dialog;
+        }
+
+        private void AttachExistingProject(string path)
+        {
+            if(string.IsNullOrWhiteSpace(path)||!Directory.Exists(path))throw new IOException("Выберите существующую папку проекта.");
+            path=Path.GetFullPath(path);string root=Path.GetPathRoot(path);if(path.Length>root.Length)path=path.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+            RegisterProject(path);collapsedProjects.Remove(path);searchBox.Clear();SaveProjectTree();RefreshChatList();
+        }
+        private void SaveProjectTree()
+        {state.collapsedProjectPaths=collapsedProjects.ToList();SaveState();}
+
+        private void CreateProjectChat(string path)
+        {
+            RegisterProject(path);collapsedProjects.Remove(path);
+            pendingAttachments.Clear();RenderAttachments();input.Clear();
+            activeChat=NewChat();activeChat.projectPath=path;state.activeChatId=activeChat.id;
+            searchBox.Clear();SaveProjectTree();RefreshChatList();RenderConversation();input.Focus();
+        }
+
+        private void MoveChatToProject(ChatSession chat,string path)
+        {
+            if(chat==generationChat && generationCancellation!=null){MuseDialog.Show(this,"Остановите ответ перед сменой рабочей папки.","Чат занят");return;}
+            if(!string.IsNullOrWhiteSpace(chat.projectPath))RegisterProject(chat.projectPath);
+            if(path!=null){RegisterProject(path);collapsedProjects.Remove(path);}
+            chat.projectPath=path;SaveProjectTree();RefreshChatList();RenderConversation();
+        }
+
+        private void RemoveProject(string path)
+        {
+            if(generationCancellation!=null && generationChat!=null && string.Equals(generationChat.projectPath,path,StringComparison.OrdinalIgnoreCase))
+            {MuseDialog.Show(this,"Остановите ответ перед удалением проекта из списка.","Проект занят");return;}
+            bool removedActive=activeChat!=null && string.Equals(activeChat.projectPath,path,StringComparison.OrdinalIgnoreCase);
+            state.chats.RemoveAll(c=>string.Equals(c.projectPath,path,StringComparison.OrdinalIgnoreCase));
+            if(removedActive){activeChat=null;pendingAttachments.Clear();input.Clear();RenderAttachments();EnsureActiveChat();}
+            state.projects.RemoveAll(p=>string.Equals(p,path,StringComparison.OrdinalIgnoreCase));collapsedProjects.Remove(path);
+            SaveProjectTree();RefreshChatList();RenderConversation();
+        }
+
+        private ContextMenuStrip CreateProjectMenu(string path)
+        {
+            var menu=new ContextMenuStrip();
+            menu.Items.Add("Новый чат",null,delegate{CreateProjectChat(path);});
+            menu.Items.Add("Открыть папку",null,delegate{try{Process.Start("explorer.exe","\""+path+"\"");}catch(Exception ex){MuseDialog.Show(this,ex.Message,"Папка проекта");}});
+            menu.Items.Add("Скопировать путь",null,delegate{Clipboard.SetText(path);});
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Удалить проект и чаты…",null,delegate{
+                int count=state.chats.Count(c=>string.Equals(c.projectPath,path,StringComparison.OrdinalIgnoreCase));
+                if(MuseDialog.Show(this,"Удалить проект «"+ProjectName(path)+"» и все его чаты ("+count+") из Muse Desk? Папка и файлы на диске сохранятся.","Удалить проект и чаты",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)==DialogResult.Yes)RemoveProject(path);
+            });return menu;
         }
 
         private void AddChatRow(ChatSession chat,bool nested)
@@ -208,12 +297,11 @@ namespace MuseDeskNative
             Panel row=new Panel {Width=226,Height=32,BackColor=Ink,Margin=new Padding(0,0,0,2)};
             RoundedButton item=(RoundedButton)MakeButton(chat.title,chat==activeChat?InkRaised:Ink,TextInk,198,32);
             item.Radius=8;item.TextAlign=ContentAlignment.MiddleLeft;item.Font=InterfaceTypography.Sidebar();item.IconTint=InterfaceTypography.Secondary;item.Padding=new Padding(nested?27:0,0,6,0);
-            if(!nested)item.IconName="folder";
             item.GrayscaleText=true;
             tips.SetToolTip(item,chat.title);item.Click+=delegate{pendingAttachments.Clear();RenderAttachments();activeChat=chat;state.activeChatId=chat.id;SaveState();RefreshChatList();RenderConversation();};
-            item.ContextMenuStrip=CreateChatMenu(chat);row.Controls.Add(item);
+            item.ContextMenuStrip=CreateChatMenu(chat);OwnMenu(item.ContextMenuStrip,item,false);row.Controls.Add(item);
             RoundedButton more=(RoundedButton)MakeButton("Действия: "+chat.title,item.BackColor,Muted,24,24);more.IconName="more";more.IconOnly=true;more.Location=new Point(199,4);more.TabStop=true;
-            more.Click+=delegate{ContextMenuStrip menu=CreateChatMenu(chat);menu.Closed+=delegate{menu.Dispose();};menu.Show(more,new Point(0,24));};row.Controls.Add(more);more.BringToFront();
+            more.Click+=delegate{ShowTransientMenu(CreateChatMenu(chat),more,new Point(0,24));};row.Controls.Add(more);more.BringToFront();
             if(chat==generationChat && generationCancellation!=null)
             {
                 item.Padding=new Padding(nested?27:0,0,26,0);
@@ -231,25 +319,33 @@ namespace MuseDeskNative
         private void PopulateChatTree(IEnumerable<ChatSession> chats,bool searching)
         {
             List<ChatSession> list=chats.ToList();
-            var groups=list.Where(c=>!string.IsNullOrWhiteSpace(c.projectPath)).GroupBy(c=>c.projectPath,StringComparer.OrdinalIgnoreCase).ToList();
-            if(groups.Count>0)AddChatSection("Проекты");
-            foreach(var group in groups)
+            string query=searchBox.Text.Trim();
+            var paths=ProjectPaths().Where(p=>!searching || p.IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0 || list.Any(c=>string.Equals(c.projectPath,p,StringComparison.OrdinalIgnoreCase))).ToList();
+            if(paths.Count>0)AddChatSection("Проекты");
+            foreach(string path in paths)
             {
-                string path=group.Key;bool collapsed=collapsedProjects.Contains(path)&&!searching;
-                RoundedButton folder=(RoundedButton)MakeButton(Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar)),Ink,TextInk,226,32);folder.IconName=collapsed?"folder":"folder-open";folder.IconTint=InterfaceTypography.Secondary;folder.TextAlign=ContentAlignment.MiddleLeft;folder.Font=InterfaceTypography.Sidebar();folder.Margin=Padding.Empty;
-                tips.SetToolTip(folder,path);folder.Click+=delegate{if(!collapsedProjects.Add(path))collapsedProjects.Remove(path);RefreshChatList();};chatList.Controls.Add(folder);
+                var group=list.Where(c=>string.Equals(c.projectPath,path,StringComparison.OrdinalIgnoreCase)).ToList();bool collapsed=collapsedProjects.Contains(path)&&!searching;
+                RoundedButton folder=(RoundedButton)MakeButton(ProjectName(path),Ink,TextInk,226,32);folder.IconName=collapsed?"folder":"folder-open";folder.IconTint=InterfaceTypography.Secondary;folder.TextAlign=ContentAlignment.MiddleLeft;folder.Font=InterfaceTypography.Sidebar();folder.Margin=Padding.Empty;folder.Padding=new Padding(0,0,60,0);
+                tips.SetToolTip(folder,path);folder.Click+=delegate{if(!collapsedProjects.Add(path))collapsedProjects.Remove(path);SaveProjectTree();RefreshChatList();};chatList.Controls.Add(folder);
+                folder.ContextMenuStrip=CreateProjectMenu(path);OwnMenu(folder.ContextMenuStrip,folder,false);
+                RoundedButton add=(RoundedButton)MakeButton("Новый чат в «"+ProjectName(path)+"»",Ink,Muted,24,24);add.IconName="add";add.IconOnly=true;add.Location=new Point(172,4);tips.SetToolTip(add,"Новый чат в проекте");add.Click+=delegate{CreateProjectChat(path);};folder.Controls.Add(add);
+                RoundedButton more=(RoundedButton)MakeButton("Действия проекта «"+ProjectName(path)+"»",Ink,Muted,24,24);more.IconName="more";more.IconOnly=true;more.Location=new Point(199,4);more.Click+=delegate{ShowTransientMenu(CreateProjectMenu(path),more,new Point(0,24));};folder.Controls.Add(more);
                 folder.GrayscaleText=true;
                 if(collapsed && generationCancellation!=null && group.Any(c=>c==generationChat))
                 {
-                    folder.Padding=new Padding(0,0,28,0);
-                    ChatActivityIndicator spinner=new ChatActivityIndicator {Location=new Point(203,7),BackColor=folder.BackColor,ForeColor=Muted,Tag=generationChat.id};
+                    folder.Padding=new Padding(0,0,80,0);
+                    ChatActivityIndicator spinner=new ChatActivityIndicator {Location=new Point(152,7),BackColor=folder.BackColor,ForeColor=Muted,Tag=generationChat.id};
                     spinner.Click+=delegate{folder.PerformClick();};folder.Controls.Add(spinner);
                 }
                 if(!collapsed)foreach(ChatSession chat in group)AddChatRow(chat,true);
+                if(!collapsed && group.Count==0)
+                {
+                    var empty=(RoundedButton)MakeButton("Создать первый чат",Ink,Muted,226,30);empty.Padding=new Padding(27,0,0,0);empty.TextAlign=ContentAlignment.MiddleLeft;empty.Font=InterfaceTypography.Sidebar();empty.Click+=delegate{CreateProjectChat(path);};chatList.Controls.Add(empty);
+                }
             }
             var recent=list.Where(c=>string.IsNullOrWhiteSpace(c.projectPath)).ToList();
             if(recent.Count>0)AddChatSection("Недавние");foreach(ChatSession chat in recent)AddChatRow(chat,false);
-            if(list.Count==0)chatList.Controls.Add(new Label {Text="Чаты не найдены",ForeColor=Muted,AutoSize=true,Margin=new Padding(10)});
+            if(list.Count==0 && paths.Count==0)chatList.Controls.Add(new Label {Text="Чаты не найдены",ForeColor=Muted,AutoSize=true,Margin=new Padding(10)});
         }
     }
 }

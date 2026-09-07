@@ -211,7 +211,7 @@ namespace MuseDeskNative
         {
             ChatSession chat=activeChat;if(chat==null)return;
             ContextMenuStrip menu=CreateAccessMenu(chat);
-            menu.Closed+=delegate{menu.Dispose();};menu.Show(composerAccessButton,new Point(0,composerAccessButton.Height));
+            ShowTransientMenu(menu,composerAccessButton,new Point(0,composerAccessButton.Height));
         }
         private ContextMenuStrip CreateAccessMenu(ChatSession chat)
         {

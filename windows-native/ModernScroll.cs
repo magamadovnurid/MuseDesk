@@ -44,6 +44,7 @@ namespace MuseDeskNative
         private readonly ModernFlowPanel owner;
         private bool dragging,hover;
         private int dragY,dragOffset;
+        internal ModernFlowPanel ScrollOwner {get{return owner;}}
         internal ThinScrollBar(ModernFlowPanel panel)
         {
             owner=panel;Width=10;TabStop=true;AccessibleName="Прокрутка";AccessibleRole=AccessibleRole.ScrollBar;Cursor=Cursors.Default;
@@ -57,6 +58,9 @@ namespace MuseDeskNative
             BackColor=owner.BackColor;Visible=owner.Visible && owner.MaximumOffset>0;
             if(Visible)BringToFront();Invalidate();
         }
+        protected override void OnParentChanged(EventArgs e){base.OnParentChanged(e);if(owner!=null)UpdateView(this,EventArgs.Empty);}
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {base.OnMouseWheel(e);owner.ScrollWheel(e.Delta);var handled=e as HandledMouseEventArgs;if(handled!=null)handled.Handled=true;}
         internal Rectangle Thumb
         {
             get

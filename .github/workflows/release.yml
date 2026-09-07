@@ -1,0 +1,26 @@
+name: Publish Windows preview
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test application
+        shell: powershell
+        run: ./scripts/test-windows.ps1
+      - name: Build installer
+        shell: powershell
+        run: ./scripts/build-installer.ps1 -OutputDirectory ./dist
+      - name: Test installer
+        shell: powershell
+        run: ./scripts/test-installer.ps1
+      - name: Publish preview assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME ./dist/MuseDesk-Setup.exe ./dist/SHA256.txt --prerelease --title "Muse Desk $env:GITHUB_REF_NAME" --notes-file docs/RELEASE-NOTES.md

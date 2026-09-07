@@ -55,8 +55,8 @@ namespace MuseDeskNative
     {
         internal static Font Sidebar(){return new Font("Segoe UI",10.5F,FontStyle.Regular,GraphicsUnit.Point);}
         internal static Font Caption(){return new Font("Segoe UI",9F,FontStyle.Regular,GraphicsUnit.Point);}
-        internal static readonly Color Primary=Color.FromArgb(26,28,31);
-        internal static readonly Color Secondary=Color.FromArgb(99,101,103);
-        internal static readonly Color Tertiary=Color.FromArgb(140,142,144);
+        internal static readonly Color Primary=Color.FromArgb(61,63,66);
+        internal static readonly Color Secondary=Color.FromArgb(113,115,118);
+        internal static readonly Color Tertiary=Color.FromArgb(145,147,150);
     }
 }

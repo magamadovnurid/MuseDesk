@@ -31,7 +31,22 @@ namespace MuseDeskNative
             Directory.CreateDirectory(output);
             Environment.SetEnvironmentVariable("MUSE_DESK_TEST_DATA", Path.Combine(output,Guid.NewGuid().ToString("N")));
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
-            try { using (MainForm form = new MainForm()) form.RunReviewTests(output,args.Contains("--live")); return 0; }
+            try
+            {
+                int result=0;
+                using(MainForm form=new MainForm())
+                {
+                    form.ShowInTaskbar=false;form.Opacity=0;
+                    form.Shown+=delegate {form.BeginInvoke((MethodInvoker)delegate
+                    {
+                        try {form.RunReviewTests(output,args.Contains("--live"));}
+                        catch(Exception ex){Console.WriteLine("FAIL: "+ex);result=1;}
+                        finally {form.Close();}
+                    });};
+                    Application.Run(form);
+                }
+                Console.WriteLine("Test UI shutdown completed.");return result;
+            }
             catch (Exception ex) { Console.WriteLine("FAIL: "+ex); return 1; }
         }
     }
@@ -57,6 +72,59 @@ namespace MuseDeskNative
             if (!task.IsCompleted) throw new TimeoutException("Test exceeded "+timeoutSeconds+" seconds");
             task.GetAwaiter().GetResult(); return true;
         }
+        private void CheckModelLifecycle()
+        {
+            var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
+            string previous=state.settings.baseUrl;string selected=state.settings.model;
+            var requests=new List<string>();
+            string other=json.Serialize(new{models=new[]{new{name="other-model",size_vram=1024}}});
+            string ready=json.Serialize(new{models=new[]{new{name=selected,size_vram=2048}}});
+            string[] replies={other,other,"{}","{\"models\":[]}","{}",ready};
+            Task server=Task.Run(async delegate
+            {
+                foreach(string reply in replies)
+                using(var client=await listener.AcceptTcpClientAsync())
+                using(var stream=client.GetStream())
+                {
+                    string first,body;
+                    using(var reader=new StreamReader(stream,Encoding.UTF8,false,1024,true))
+                    {first=await reader.ReadLineAsync();string line;int length=0;
+                    while(!string.IsNullOrEmpty(line=await reader.ReadLineAsync()))if(line.StartsWith("Content-Length:",StringComparison.OrdinalIgnoreCase))length=int.Parse(line.Substring(15).Trim());
+                    char[] chars=new char[length];int offset=0;while(offset<length){int count=await reader.ReadAsync(chars,offset,length-offset);if(count==0)break;offset+=count;}body=new string(chars,0,offset);}
+                    requests.Add(first+" "+body);
+                    byte[] bytes=Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+Encoding.UTF8.GetByteCount(reply)+"\r\nConnection: close\r\n\r\n"+reply);await stream.WriteAsync(bytes,0,bytes.Length);
+                }
+            });
+            try
+            {
+                state.settings.baseUrl="http://127.0.0.1:"+((IPEndPoint)listener.LocalEndpoint).Port;
+                Pump(PrepareSelectedModelAsync(CancellationToken.None),8);Pump(server,3);
+                Check(requests[2].Contains("other-model")&&requests[2].Contains("\"keep_alive\":0"),"Previous model receives explicit unload before loading selection");
+                Check(requests[3].StartsWith("GET /api/ps")&&requests[4].Contains(selected)&&requests[4].Contains("\"keep_alive\":-1"),"Selection preloads only after empty-memory confirmation and stays resident");
+                Check(connectionTitle.Text=="Готово"&&!modelTransition,"Successful preload becomes ready only after residency verification");
+            }
+            finally{state.settings.baseUrl=previous;listener.Stop();}
+        }
+        private void CheckModelExclusion()
+        {
+            var selectedRow=new Dictionary<string,object>{{"name","Muse"},{"size_vram",1024L}};
+            Check(!IsExclusiveGpuModel(new Dictionary<string,object>{{"models",new object[0]}},"Muse"),"Installed model is not marked GPU ready");
+            Check(IsExclusiveGpuModel(new Dictionary<string,object>{{"models",new object[]{selectedRow}}},"Muse"),"Only the selected GPU-resident model is ready");
+            Check(!IsExclusiveGpuModel(new Dictionary<string,object>{{"models",new object[]{selectedRow,selectedRow}}},"Muse"),"Two residents cannot show ready");
+            Check(!IsExclusiveGpuModel(new Dictionary<string,object>{{"models",new object[]{selectedRow}}},"Qwen"),"Different resident cannot show selected model ready");
+            selectedRow["size_vram"]=0L;
+            Check(!IsExclusiveGpuModel(new Dictionary<string,object>{{"models",new object[]{selectedRow}}},"Muse"),"CPU-only residency is not GPU ready");
+            var unloaded=new List<string>();int reads=0;
+            Pump(RequireEmptyModelsAsync(()=>Task.FromResult(++reads<3?new List<string>{"Muse","Qwen"}:new List<string>()),name=>{unloaded.Add(name);return Task.FromResult(0);},CancellationToken.None),5);
+            Check(unloaded.SequenceEqual(new[]{"Muse","Qwen"})&&reads==3,"Model loading waits until both old models disappear");
+            using(var cancel=new CancellationTokenSource(150))
+            {
+                bool blocked=false;try{Pump(RequireEmptyModelsAsync(()=>Task.FromResult(new List<string>{"Muse"}),name=>Task.FromResult(0),cancel.Token),5);}catch(OperationCanceledException){blocked=true;}
+                Check(blocked,"Stuck unload blocks loading instead of continuing");
+            }
+            bool failed=false;try{Pump(RequireEmptyModelsAsync(()=>Task.FromResult(new List<string>{"Muse"}),name=>{throw new IOException("unload failed");},CancellationToken.None),5);}catch(IOException){failed=true;}
+            Check(failed,"Unload failure blocks next model");
+        }
         private static void AddXml(ZipArchive zip,string path,string xml)
         {
             using (StreamWriter writer=new StreamWriter(zip.CreateEntry(path).Open(),new UTF8Encoding(false))) writer.Write(xml);
@@ -67,6 +135,7 @@ namespace MuseDeskNative
         }
         internal void RunReviewTests(string output,bool live)
         {
+            if(!live) modelProcessCount = name => 0;
             foreach(int size in new int[]{16,20,24,32,40,48,64,128,256})
             using(Bitmap icon=MuseBrand.Render(size,true))
             {
@@ -75,10 +144,29 @@ namespace MuseDeskNative
             }
             CheckButtonSurfaces(output);
             ShowInTaskbar=false; Opacity=0; Show(); Size=new Size(1340,900); PerformLayout();
+            CheckMenuLifetime();
+            CheckEngineStartupLifetime();
+            CheckModelExclusion();
+            CheckModelLifecycle();
+            CheckProjectTree(output);
+            CheckApplicationMenu(output);
+            CheckThreeColumnScrollbars(output);
+            CheckStyledDialogs(output);
+            ModelStatus("Выгружаю предыдущую модель","Muse Glimmer · ожидание памяти",true,false);
+            Check(!input.Enabled&&input.ReadOnly&&!sendButton.Enabled,"Composer and submit stay disabled during unloading");
+            Check(connectionDot.Busy,"Model transition animates the status indicator");
+            DesignPreview.Capture(this,Path.Combine(output,"model-unloading.png"));
+            ModelStatus("Загружаю Muse Glimmer","В видеопамять · подождите",true,false);
+            DesignPreview.Capture(this,Path.Combine(output,"model-loading.png"));
+            ModelStatus("Готова к использованию","Muse Glimmer · в видеопамяти",false,true);
+            Check(input.Enabled&&!input.ReadOnly&&sendButton.Enabled,"Composer and submit activate only with confirmed readiness");
+            Check(!connectionDot.Busy&&connectionDot.ForeColor==Mint,"Confirmed ready status stops animation and turns green");
+            DesignPreview.Capture(this,Path.Combine(output,"model-ready.png"));
             CheckComposerCaret();
             CheckPermissions(output);
             CheckAgentWorkflow(output);
             CheckUiPolish(output);
+            CheckActionLog(output);
             CheckTaskSummary(output);
             CheckTextEncodings(output);
             CheckContextBudget(output);
@@ -88,7 +176,7 @@ namespace MuseDeskNative
             Check(resultsHost.Visible && resultsCard.Visible && resultsCard.Controls.Count>0,"Results and sources panel is visible by default");
             CheckScrollBehavior();
             Check(center.Width>950 && sidebar.Width==254,"Native sidebar and chat layout");
-            Check(input.Height>=55 && sendButton.Width==42,"Composer has editable area and send button");
+            Check(input.Height>=24 && sendButton.Width==42,"Composer has editable area and send button");
             Check(sidebar.BackColor.GetBrightness()>0.9F && center.BackColor==Color.White && sendButton.BackColor.R==sendButton.BackColor.G,"Codex-style neutral palette and light workspace");
             sidebarToggle.PerformClick();PerformLayout();
             Check(!sidebar.Visible && center.Width>1200,"Sidebar can collapse without losing the editor");
@@ -112,6 +200,9 @@ namespace MuseDeskNative
             ChatMessage user=new ChatMessage {role="user",content="Проверь документ и ответь по-русски."}; user.files.Add(snapshot);
             ChatMessage answer=new ChatMessage {role="assistant",content="## Результат\nДокумент прочитан. **Все данные** остаются локально.\n\n```python\nprint(17 * 23)\n```",thinking="Проверяю содержимое документа.",tokensPerSecond=25.4};
             activeChat.messages.Add(user);activeChat.messages.Add(answer); activeChat.title="Проверка Muse Desk";
+            user.sentAt="2026-09-07T16:10:20.0000000Z";answer.completedAt="2026-09-07T16:10:35.0000000Z";
+            Check(MessageTimestamp(new ChatMessage {role="user"})=="" && MessageTimestamp(new ChatMessage {role="assistant",completedAt="invalid"})=="","Legacy and invalid timestamps are not fabricated");
+            Check(MessageTimestamp(user)==DateTimeOffset.Parse(user.sentAt).ToLocalTime().ToString("dd.MM.yyyy · HH:mm:ss",System.Globalization.CultureInfo.InvariantCulture),"Prompt timestamp uses local Windows time");
             activeChat.resultFiles.Add(original);activeChat.sourceUrls.Add("https://example.com/source");activeChat.referenceUrls.Add("https://example.com/reference");activeChat.projectPath=output;
             RefreshChatList();
             Check(chatList.Controls.OfType<RoundedButton>().Any(b=>b.IconName=="folder-open"),"Project groups display actual folder icons");
@@ -119,6 +210,7 @@ namespace MuseDeskNative
             RenderConversation();
             Check(resultsBody.Controls.OfType<RoundedButton>().Any(b=>b.Text=="attachment.txt") && resultsBody.Controls.OfType<RoundedButton>().Any(b=>b.Text.Contains("example.com")),"Results panel lists real files, source links and attachments");
             Check(messageList.Controls.Count==2,"First message replaces welcome screen");
+            Check(Descendants(messageList).OfType<Label>().Count(l=>l.AccessibleName=="Время отправки" || l.AccessibleName=="Время завершения ответа")==2,"Prompt and answer display separate timestamps");
             using(Control compact=BuildMessageCard(new ChatMessage {role="user",content="Короткий вопрос"},740))
             {
                 Control bubble=compact.Controls[0];
@@ -130,13 +222,19 @@ namespace MuseDeskNative
             DesignPreview.Capture(this,Path.Combine(output,"native-window.png"));
             CheckStreamingBehavior(output);
             Size=new Size(940,650); PerformLayout();RenderConversation();
-            Check(input.Width>=500 && input.Height>=55,"Minimum window keeps composer usable");
+            Check(input.Width>=500 && input.Height>=24,"Minimum window keeps composer usable");
+            string composerDraft=input.Text;input.Clear();int compactHeight=composerHost.Height;
+            Check(compactHeight<170,"Empty composer removes the spare line of vertical space");
+            input.Text=string.Join("\r\n",Enumerable.Repeat("Длинный промпт для проверки роста поля ввода.",100));Application.DoEvents();
+            Check(composerHost.Height>compactHeight && composerHost.Height<=center.ClientSize.Height/3 && input.ScrollBars==ScrollBars.Vertical,"Long prompt grows upward only to one third of the workspace, then scrolls");
+            input.Clear();Check(composerHost.Height==compactHeight && input.ScrollBars==ScrollBars.None,"Clearing a long prompt restores the compact composer");input.Text=composerDraft;
             Check(composerThinkingButton.PointToScreen(new Point(composerThinkingButton.Width,0)).X<=micButton.PointToScreen(Point.Empty).X,"Model and reasoning controls do not overlap voice buttons in narrow window");
             Check(composerThinkingButton.PointToScreen(new Point(composerThinkingButton.Width,0)).X<=composerModelButton.PointToScreen(Point.Empty).X && composerModelButton.PointToScreen(new Point(composerModelButton.Width,0)).X<=micButton.PointToScreen(Point.Empty).X,"Narrow composer keeps reasoning left and model selector right with no overlap");
             DesignPreview.Capture(this,Path.Combine(output,"native-window-small.png"));
             SaveState(); activeChat.title="Version two"; SaveState();
             StoredState roundTrip=LoadState(); Check(roundTrip.chats.First(x=>x.id==activeChat.id).messages.Count==2,"History survives reload");
             ChatSession savedDetails=roundTrip.chats.First(x=>x.id==activeChat.id);
+            Check(savedDetails.messages[0].sentAt==user.sentAt && savedDetails.messages[1].completedAt==answer.completedAt,"Prompt and completion timestamps survive history reload");
             Check(savedDetails.projectPath==output && savedDetails.resultFiles.Contains(original) && savedDetails.referenceUrls.Count==1,"Project folders and results survive history reload");
             File.WriteAllText(statePath,"{broken"); StoredState recovered=LoadState();
             Check(recovered.chats.First(x=>x.id==activeChat.id).title=="Проверка Muse Desk","Corrupt history recovers backup");
@@ -148,6 +246,14 @@ namespace MuseDeskNative
             Check(!BuildRequestMessages(activeChat,null).Any(x=>GetString(x,"content").Contains("FAILED_SENTINEL")),"Failed response excluded from subsequent context");activeChat.messages.Remove(answer);
             state.settings.model=PreferredModel;PopulateModels(new List<string>{PreferredModel,"test:secondary"});state.settings.model="test:secondary"; modelCombo.SelectedItem="test:secondary";PopulateModels(new List<string>{PreferredModel,"test:secondary"});
             Check(state.settings.model=="test:secondary","Health refresh preserves model selection");state.settings.model=PreferredModel;
+            string qwenModel="huihui_ai/Qwen3.8-abliterated:27b";
+            PopulateModels(new List<string>{PreferredModel,qwenModel});
+            modelCombo.SelectedItem=qwenModel;
+            Check(state.settings.model==qwenModel,"Selecting Qwen uses its exact installed model identifier");
+            PopulateModels(new List<string>{qwenModel,PreferredModel});
+            Check(state.settings.model==qwenModel && Convert.ToString(modelCombo.SelectedItem)==qwenModel,"Model refresh and reorder preserve selected Qwen alongside Muse");
+            modelCombo.SelectedItem=PreferredModel;
+            Check(state.settings.model==PreferredModel && modelCombo.Items.Contains(qwenModel),"Switching back to Muse does not remove Qwen");
             bool remoteRejected=false; try { NormalizeUrl("https://example.com"); } catch { remoteRejected=true; }
             Check(remoteRejected,"Engine connection restricted to local host");
             string docx=Path.Combine(output,"test.docx");
@@ -221,7 +327,7 @@ namespace MuseDeskNative
         }
         private void CheckIconFidelity(string output)
         {
-            Check(IconAssets.Count==25,"All 25 interface icons are bundled source assets, not hand-drawn approximations");
+            Check(IconAssets.Count==25,"All 25 original Muse Desk interface icons are bundled");
             foreach(string name in new[]{"folder","folder-open","edit","copy","check","settings","sliders","search","more","mic","sidebar","results"})
             {
                 Check(IconAssets.Has(name),"Source icon is available: "+name);
@@ -235,7 +341,7 @@ namespace MuseDeskNative
             foreach(Button action in sidebar.Controls.OfType<Button>().Where(b=>new[]{"Новый чат","Возможности","Добавить файлы","Настройки"}.Contains(b.Text)))
                 Check(action.Font.Name=="Segoe UI"&&Math.Abs(action.Font.SizeInPoints-10.5F)<.01F&&action.Font.Style==FontStyle.Regular,"Sidebar action matches 14 px regular typography: "+action.Text);
             using(RoundedButton copy=MakeCopyButton(()=>"Проверка копирования","Копировать",Color.White))
-                Check(copy.IconPixelSize==16&&copy.Width==30&&copy.Text==""&&copy.IconTint==InterfaceTypography.Tertiary&&copy.IconHoverTint==InterfaceTypography.Secondary,"Copy uses the original small source glyph, a 30 px hit target, subtle default tint and no visible label");
+                Check(copy.IconPixelSize==16&&copy.Width==30&&copy.Text==""&&copy.IconTint==InterfaceTypography.Tertiary&&copy.IconHoverTint==InterfaceTypography.Secondary,"Copy uses the small Muse Desk glyph, a 30 px hit target, subtle default tint and no visible label");
             List<ChatSession> original=state.chats;ChatSession current=activeChat;Size oldSize=Size;
             try
             {
@@ -314,6 +420,60 @@ namespace MuseDeskNative
                 }
             }
             finally{clipboardWriter=savedWriter;expandedThoughts.Remove(message);}
+        }
+
+        private void CheckActionLog(string output)
+        {
+            string raw="Код завершения: 1\n\nСтандартный вывод (stdout):\n"+string.Join("\n",Enumerable.Range(1,16).Select(i=>"["+i.ToString("00")+"] Проверка ресурса проекта site: структура папок и ссылки на изображения корректны.").ToArray())+"\n\nДиагностика (stderr):\n\u001b[31mОшибка: отсутствует index.html\u001b[0m\nФинальная строка 😀";
+            ToolCall first=WorkflowCall("run_process","executable","powershell.exe","arguments","-NoProfile -File build.ps1","working_directory","C:\\Projects\\site");
+            ToolCall second=WorkflowCall("read_text_file","path","C:\\Projects\\site\\package.json");
+            ChatMessage message=new ChatMessage{role="assistant",content="Проверяю сборку.",toolLog="• run_process → Сокращённая запись",wireMessages=new List<Dictionary<string,object>>{
+                new Dictionary<string,object>{{"role","assistant"},{"tool_calls",new object[]{first.Raw,second.Raw}}},
+                new Dictionary<string,object>{{"role","tool"},{"tool_name","run_process"},{"content",raw}},
+                new Dictionary<string,object>{{"role","tool"},{"tool_name","read_text_file"},{"content","{\n  \"name\": \"site\"\n}"}}
+            }};
+            var entries=ActionEntries(message);
+            Check(entries.Count==2 && entries[0].Output.Contains("Финальная строка 😀") && entries[0].Output.Length>1200,"Action journal restores complete results from saved protocol, beyond the old 240-character preview");
+            Check(!entries[0].Output.Contains("\u001b") && entries[0].Output.Contains("\r\n"),"Action output removes terminal escapes while preserving Unicode and line breaks");
+            Check(entries[0].Input.Contains("Рабочая папка:\r\nC:\\Projects\\site") && entries[0].Target.Contains("build.ps1"),"Action journal separates command, arguments and working directory");
+            Check(entries[0].Status=="Ошибка · код 1" && entries[1].Status=="Завершено","Action status distinguishes command failure from tool completion");
+            Check(ReadActionStatus("Действие не разрешено пользователем.")=="Нет доступа" && ReadActionStatus("Не выполнено: уточнение")=="Пропущено","Action journal distinguishes denied and skipped actions");
+            Check(ReadActionStatus("Код завершения: 0\nПредупреждение")=="Код 0","Successful process exit is not inferred from arbitrary diagnostic text");
+            ChatMessage restored=json.Deserialize<ChatMessage>(json.Serialize(message));
+            Check(ActionEntries(restored).Count==2 && FullActionLogText(restored).Contains("Финальная строка 😀"),"Structured action journal survives history serialization without executing tools");
+            Action<string> saved=clipboardWriter;string copied=null;clipboardWriter=value=>copied=value;
+            try
+            {
+                using(Control row=BuildMessageCard(message,740))
+                using(Form preview=new Form{ClientSize=new Size(780,1050),BackColor=Color.White,Opacity=0,ShowInTaskbar=false})
+                {
+                    preview.Controls.Add(row);row.Location=new Point(20,20);preview.Show();
+                    Check(Descendants(row).Count(c=>c.Name=="ActionRow")==2 && !Descendants(row).Any(c=>c.AccessibleName=="Действие: Результат"),"Action journal starts with compact rows rather than a wall of output");
+                    int before=row.Height;
+                    Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Раскрыть действие 1").PerformClick();
+                    Check(row.Height>before && Descendants(row).OfType<RichTextBox>().Any(b=>b.Text.Contains("Финальная строка 😀")),"Expanding an action reveals the full scrollable result and resizes its message");
+                    Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Скопировать действие 1").PerformClick();
+                    Check(copied.Contains("Финальная строка 😀") && copied.Contains("build.ps1"),"Action copy includes full command and result, not the collapsed summary");
+                    Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Скопировать блок: Действия").PerformClick();
+                    Check(copied.Contains("package.json") && copied.Contains("Финальная строка 😀"),"Journal copy includes every action and complete output");
+                    Check(Descendants(row).OfType<RoundedButton>().Where(b=>(b.AccessibleName??"").StartsWith("Скопировать")).All(b=>b.IconOnly && b.Text==""),"Every action copy control is icon-only");
+                    DesignPreview.Capture(preview,Path.Combine(output,"action-log-expanded.png"));
+                    Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Раскрыть действие 1").PerformClick();
+                    Check(row.Height==before,"Collapsing an action restores the original message height without gaps");
+                    DesignPreview.Capture(preview,Path.Combine(output,"action-log-compact.png"));
+                }
+                using(Control narrow=BuildMessageCard(message,320))
+                    Check(Descendants(narrow).OfType<RoundedButton>().Where(b=>(b.AccessibleName??"").StartsWith("Скопировать")).All(b=>b.Left>=0&&b.Right<=b.Parent.Width),"Action copy buttons remain inside a narrow chat column");
+                ChatMessage pending=new ChatMessage{role="assistant",canceled=true,wireMessages=new List<Dictionary<string,object>>{message.wireMessages[0]}};
+                Check(ActionEntries(pending).All(e=>!e.HasResult&&e.Status=="Остановлено"),"Interrupted calls are never displayed as completed results");
+                using(Control row=BuildStreamingRow(message,740))
+                {
+                    StreamView view=(StreamView)row.Tag;UpdateStreamActions(view);
+                    Check(view.Actions!=null && Descendants(row).Count(c=>c.Name=="ActionRow")==2,"Action journal is available during streaming independently of response text");
+                    var same=view.Actions;UpdateStreamActions(view);Check(ReferenceEquals(same,view.Actions),"Unchanged live action rows are not rebuilt on every animation frame");
+                }
+            }
+            finally{clipboardWriter=saved;expandedActions.Remove(message);collapsedActionLogs.Remove(message);}
         }
 
         private void CheckTaskSummary(string output)
@@ -810,10 +970,21 @@ namespace MuseDeskNative
                 Check(!followResponseTail && messageList.AutoScrollPosition.Y==0,"Streaming does not pull a reader back down after scrolling up");
                 Check(NextVisibleBoundary("A😀e\u0301B",1,1)==3 && NextVisibleBoundary("A😀e\u0301B",3,1)==5,"Animation preserves emoji pairs and combining characters");
                 DesignPreview.Capture(this,Path.Combine(output,"streaming-window.png"));
+                ((ModernFlowPanel)messageList).UserScrollTo(((ModernFlowPanel)messageList).MaximumOffset);
+                followResponseTail=true;scrollAnimationTarget=((ModernFlowPanel)messageList).MaximumOffset;
+                generationCancellation.Dispose();generationCancellation=null;generationChat=null;
+                reply.tokensPerSecond=36.1;reply.completedAt=DateTime.UtcNow.ToString("o");
+                RenderConversation();Application.DoEvents();AnimateStreamFrame();
+                Check(scrollAnimationTarget==-1,"Completed answer discards the old streaming scroll target");
+                var footer=Descendants(messageList).OfType<Label>().Single(l=>l.AccessibleName=="Время завершения ответа");
+                int footerBottom=messageList.PointToClient(footer.PointToScreen(new Point(0,footer.Height))).Y;
+                DesignPreview.Capture(this,Path.Combine(output,"footer-debug.png"));
+                Check(footerBottom<=messageList.ClientSize.Height-24,"Completed answer footer stays fully visible above the composer: bottom="+footerBottom+", viewport="+messageList.ClientSize.Height+", offset="+(-messageList.AutoScrollPosition.Y)+", extent="+messageList.DisplayRectangle.Height+", row="+messageList.Controls[0].Bounds+", card="+footer.Parent.Bounds+", footer="+footer.Bounds+", padding="+messageList.Padding);
+                DesignPreview.Capture(this,Path.Combine(output,"completed-answer-footer.png"));
             }
             finally
             {
-                generationCancellation.Dispose();generationCancellation=null;generationChat=null;state.chats.Remove(fixture);state.activeChatId=previous.id;activeChat=previous;scrollAnimationTarget=-1;
+                if(generationCancellation!=null)generationCancellation.Dispose();generationCancellation=null;generationChat=null;state.chats.Remove(fixture);state.activeChatId=previous.id;activeChat=previous;scrollAnimationTarget=-1;
                 if(streamAnimation!=null)streamAnimation.Stop();RenderConversation();
             }
         }
@@ -875,11 +1046,197 @@ namespace MuseDeskNative
             }
         }
 
+        private void CheckThreeColumnScrollbars(string output)
+        {
+            StoredState saved=state;ChatSession current=activeChat;Size oldSize=Size;bool oldResults=resultsRequested;
+            try
+            {
+                Size=new Size(1340,900);resultsRequested=true;rightRail.Visible=false;state=new StoredState();activeChat=null;
+                for(int i=0;i<45;i++)state.chats.Add(new ChatSession {id="scroll-"+i,title="Проверка прокрутки "+i,updatedAt=DateTime.UtcNow.ToString("o")});
+                activeChat=state.chats[0];state.activeChatId=activeChat.id;
+                activeChat.messages.Add(new ChatMessage {role="assistant",content=string.Join("\n",Enumerable.Repeat("Строка длинного ответа для проверки прокрутки.",90)),completedAt=DateTime.UtcNow.ToString("o")});
+                for(int i=0;i<45;i++)activeChat.referenceUrls.Add("https://example.com/source/"+i);
+                RefreshChatList();RenderConversation();Application.DoEvents();
+                var columns=new[]{(ModernFlowPanel)chatList,(ModernFlowPanel)messageList,(ModernFlowPanel)resultsBody};
+                foreach(var column in columns)
+                {
+                    var bar=column.Parent.Controls.OfType<ThinScrollBar>().Single(b=>b.ScrollOwner==column);
+                    Check(bar.Visible && bar.Width==10 && bar.Right==column.Right && bar.Height==column.Height,"Overflow column has an aligned thin scrollbar: "+Array.IndexOf(columns,column));
+                    column.UserScrollTo(column.MaximumOffset);Check(-column.AutoScrollPosition.Y==column.MaximumOffset,"Each column reaches its final item: "+Array.IndexOf(columns,column));
+                    Check(bar.Thumb.Bottom<=bar.Height,"Scrollbar thumb remains inside its track");
+                    column.UserScrollTo(0);
+                }
+                DesignPreview.Capture(this,Path.Combine(output,"three-column-scrollbars.png"));
+                state.chats.RemoveAll(c=>c!=activeChat);activeChat.messages.Clear();activeChat.referenceUrls.Clear();
+                RefreshChatList();RenderConversation();Application.DoEvents();
+                foreach(var column in columns)
+                {
+                    var bar=column.Parent.Controls.OfType<ThinScrollBar>().Single(b=>b.ScrollOwner==column);
+                    Check(!bar.Visible && column.MaximumOffset==0,"Scrollbar disappears after content shrinks: "+Array.IndexOf(columns,column));
+                }
+            }
+            finally{state=saved;activeChat=current;resultsRequested=oldResults;Size=oldSize;RefreshChatList();RenderConversation();}
+        }
+
+        private void CheckStyledDialogs(string output)
+        {
+            using(var dialog=MuseDialog.Build("Удалить проект «Muse Studio» и все его чаты (3) из Muse Desk? Папка и файлы на диске сохранятся.","Удалить проект и чаты",MessageBoxButtons.YesNo,MessageBoxIcon.Warning))
+            {
+                dialog.Show(this);Application.DoEvents();
+                Check(dialog.FormBorderStyle==FormBorderStyle.None && dialog.Controls.OfType<RoundedButton>().Count()==3,"Confirmations use Muse styling and custom controls");
+                Check(((Button)dialog.AcceptButton).DialogResult==DialogResult.No && ((Button)dialog.CancelButton).DialogResult==DialogResult.No,"Enter and Escape safely dismiss deletion confirmations");
+                DesignPreview.Capture(dialog,Path.Combine(output,"styled-confirmation.png"));
+                dialog.Controls.OfType<RoundedButton>().Single(b=>b.DialogResult==DialogResult.Yes).PerformClick();
+                Check(dialog.DialogResult==DialogResult.Yes,"Explicit confirmation preserves the existing deletion result");dialog.Close();
+            }
+            using(var dialog=MuseDialog.Build(new string('x',4000),"Сообщение",MessageBoxButtons.OK,MessageBoxIcon.Information))
+            {
+                Check(dialog.Height<=600 && Descendants(dialog).OfType<RichTextBox>().Single().ScrollBars==RichTextBoxScrollBars.Vertical,"Long error messages stay within a scrollable dialog");
+                Check(((Button)dialog.CancelButton).DialogResult==DialogResult.OK,"Informational dialogs support Escape dismissal");
+            }
+        }
+
+        private void CheckApplicationMenu(string output)
+        {
+            var newChat=sidebar.Controls.OfType<RoundedButton>().Single(b=>b.Text=="Новый чат");
+            Check(newChat.Top+newChat.Height/2==sidebarToggle.Top+sidebarToggle.Height/2 && newChat.Right<sidebarToggle.Left,"New chat aligns with sidebar toggle without overlap");
+            Check(applicationMenu.Renderer is MuseMenuRenderer && ((ToolStripMenuItem)applicationMenu.Items[0]).DropDown.Renderer is MuseMenuRenderer,"Top menu and dropdowns share Muse hover styling");
+            Check(FormBorderStyle==FormBorderStyle.None && Descendants(titleBar).Contains(windowClose) && Descendants(titleBar).Contains(windowMaximize) && Descendants(titleBar).Contains(windowMinimize),"Unified title row replaces the system caption and contains window controls");
+            Check(windowMinimize is WindowControlButton && windowMaximize is WindowControlButton && windowClose is WindowControlButton && windowMinimize.Size==windowMaximize.Size && windowMaximize.Size==windowClose.Size && windowMinimize.Top==windowClose.Top,"Window controls use equally sized geometric icons on one baseline");
+            Check(Descendants(titleBar).OfType<Label>().Single(l=>l.Text=="Muse Desk").Font.Bold && !applicationMenu.Font.Bold,"Brand is bold while menu labels remain regular");
+            Control brandArea=titleBar.Controls["WindowBrand"],actions=titleBar.Controls["WindowActions"];
+            foreach(int testWidth in new[]{940,1340})
+            {
+                Width=testWidth;PerformLayout();titleBar.PerformLayout();
+                Check(brandArea.Right<=applicationMenu.Left && applicationMenu.Right<=actions.Left && actions.Right<=titleBar.ClientSize.Width,"Title menu cannot cover brand or window controls at width "+testWidth);
+                Point closeCenter=windowClose.PointToScreen(new Point(windowClose.Width/2,windowClose.Height/2));
+                Check(titleBar.GetChildAtPoint(titleBar.PointToClient(closeCenter))==actions,"Window close button area is not covered by the menu at width "+testWidth);
+            }
+            using(Font expected=InterfaceTypography.Sidebar())Check(applicationMenu.Font.Name==expected.Name && applicationMenu.Font.Size==expected.Size,"Menu typography matches sidebar actions");
+            Check(Descendants(titleBar).OfType<Label>().Any(l=>l.Text=="Muse Desk") && Descendants(titleBar).OfType<MuseMark>().Any(),"Application name and logo sit before the menu in the same row");
+            Check(applicationMenu.Items.Cast<ToolStripItem>().Select(i=>i.Text).SequenceEqual(new[]{"Файл","Правка","Вид","Справка"}),"Application has the four requested native menus");
+            Check(center.Top>=applicationMenu.Bottom && sidebar.Top>=applicationMenu.Bottom,"Menu occupies its own row above workspace and sidebar");
+            Check(!center.Region.IsVisible(0,0) && center.Region.IsVisible(22,1) && center.Region.IsVisible(1,22),"Workspace clips only its upper-left corner to a round curve");
+            string prior=input.Text;input.Text="Проверка меню";input.Focus();menuTextTarget=input;
+            EditText("all");Check(input.SelectedText==input.Text,"Edit menu selects text in the prompt editor");
+            bool locked=input.ReadOnly;input.ReadOnly=true;EditText("delete");Check(input.Text=="Проверка меню","Edit menu respects readiness and read-only input");input.ReadOnly=locked;input.Text=prior;
+            var view=(ToolStripMenuItem)applicationMenu.Items[2];
+            ((ToolStripMenuItem)view.DropDownItems[0]).PerformClick();Check(!sidebar.Visible,"View menu hides the sidebar");
+            ((ToolStripMenuItem)view.DropDownItems[0]).PerformClick();Check(sidebar.Visible,"View menu restores the sidebar");
+            var file=(ToolStripMenuItem)applicationMenu.Items[0];file.ShowDropDown();Application.DoEvents();
+            DesignPreview.Capture(this,Path.Combine(output,"application-menu.png"));file.HideDropDown();
+        }
+
+        private void CheckProjectTree(string output)
+        {
+            StoredState saved=state;ChatSession current=activeChat;var collapsed=collapsedProjects.ToList();
+            try
+            {
+                state=new StoredState();activeChat=null;collapsedProjects.Clear();
+                string first=Path.Combine(output,"Muse Studio"),second=Path.Combine(output,"Research");
+                Directory.CreateDirectory(first);Directory.CreateDirectory(second);
+                AttachExistingProject(first);
+                Check(ProjectName(first)=="Muse Studio" && state.projects.Contains(first),"Existing folder name becomes the project name without renaming");
+                AttachExistingProject(first+Path.DirectorySeparatorChar);
+                Check(state.projects.Count==1,"Reconnecting the same folder does not duplicate its project");
+                using(var dialog=BuildProjectDialog())
+                {dialog.Show(this);Application.DoEvents();Check(!Descendants(dialog).OfType<TextBox>().Any(),"Project dialog does not ask for a separate name");DesignPreview.Capture(dialog,Path.Combine(output,"project-dialog.png"));dialog.Close();}
+                RegisterProject(first);RegisterProject(second);RegisterProject(first.ToUpperInvariant());
+                Check(state.projects.Count==2,"Project registry deduplicates Windows paths");
+                EnsureActiveChat();RefreshChatList();
+                Check(chatList.Controls.OfType<RoundedButton>().Count(b=>b.Text=="Создать первый чат")==2,"Empty projects remain visible with a first-chat action");
+                CreateProjectChat(first);ChatSession one=activeChat;one.title="Интерфейс приложения";
+                CreateProjectChat(first);ChatSession two=activeChat;two.title="Проверка загрузки модели";
+                Check(one.id!=two.id && one.projectPath==first && two.projectPath==first,"Project plus creates independent chats in its directory");
+                MoveChatToProject(two,second);
+                Check(two.projectPath==second && one.projectPath==first,"Moving a chat preserves other project chats");
+                var request=BuildRequestMessages(one,null);
+                Check(request.Any(m=>m.ContainsKey("content")&&Convert.ToString(m["content"]).Contains(first)),"Model receives the selected chat working directory");
+                collapsedProjects.Add(second);SaveProjectTree();
+                StoredState restored=LoadState();
+                Check(restored.projects.Count==2 && restored.collapsedProjectPaths.Contains(second) && restored.chats.Single(c=>c.id==two.id).projectPath==second,"Projects, collapsed folders and chat membership survive reload");
+                collapsedProjects.Clear();RefreshChatList();RenderConversation();
+                DesignPreview.Capture(this,Path.Combine(output,"project-tree.png"));
+                activeChat=one;one.messages.Add(new ChatMessage {role="user",content="Помоги спланировать небольшой проект: приложение для личных заметок.",sentAt="2026-09-07T12:00:00Z"});
+                one.messages.Add(new ChatMessage {role="assistant",content="## Начнём с главного\nСделаем место, где удобно собирать мысли и быстро находить нужное.\n\n**Первый выпуск**\n• Создание и редактирование заметок\n• Поиск по тексту\n• Группировка по проектам\n• Локальное хранение\n\nДальше определим структуру экранов и подготовим первый прототип.",completedAt="2026-09-07T12:00:12Z"});
+                state.activeChatId=one.id;RefreshChatList();RenderConversation();Application.DoEvents();DesignPreview.Capture(this,Path.Combine(output,"github-overview.png"));
+                RemoveProject(first);
+                Check(!state.chats.Contains(one) && state.chats.Contains(two) && Directory.Exists(first),"Deleting a project removes its chats, keeps other chats and preserves disk folders");
+                RemoveProject(second);Check(!state.chats.Contains(two) && activeChat!=two && state.chats.Contains(activeChat),"Deleting the active project selects a surviving chat");
+                Check(!ProjectPaths().Contains(first),"Removed project is not recreated by remaining chats");
+            }
+            finally{state=saved;activeChat=current;collapsedProjects.Clear();foreach(string p in collapsed)collapsedProjects.Add(p);SaveState();RefreshChatList();RenderConversation();}
+        }
+
+        private void CheckMenuLifetime()
+        {
+            Application.DoEvents();int baseline=ownedMenus.Count;
+            for(int i=0;i<12;i++)
+            {
+                ContextMenuStrip menu=new ContextMenuStrip();menu.Items.Add("Проверка меню");
+                ShowTransientMenu(menu,input,new Point(0,0));
+                menu.Close(ToolStripDropDownCloseReason.AppClicked);
+                Check(!menu.IsDisposed,"Menu survives the complete native close stack #"+i);
+                Application.DoEvents();
+                Check(menu.IsDisposed,"Closed transient menu is disposed on the next UI turn #"+i);
+            }
+            Button owner=new Button();Controls.Add(owner);
+            ContextMenuStrip attached=new ContextMenuStrip();attached.Items.Add("Контекст");
+            owner.ContextMenuStrip=attached;OwnMenu(attached,owner,false);
+            owner.Dispose();Application.DoEvents();
+            Check(attached.IsDisposed,"Rebuilt chat rows release their attached context menus");
+            Check(ownedMenus.Count==baseline,"Repeated menu operations do not leak owned menus");
+            using(MainForm closing=new MainForm())
+            {
+                ContextMenuStrip menu=new ContextMenuStrip();closing.OwnMenu(menu,null,true);
+                closing.isClosing=true;closing.QueueMenuDisposal(menu);closing.Dispose();
+                Check(menu.IsDisposed,"Form disposal releases menus queued during shutdown");
+            }
+        }
+
+        private void CheckEngineStartupLifetime()
+        {
+            TcpListener listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
+            int port=((IPEndPoint)listener.LocalEndpoint).Port;
+            Task server=Task.Run(async delegate
+            {
+                using(TcpClient client=await listener.AcceptTcpClientAsync())
+                using(NetworkStream stream=client.GetStream())
+                {
+                    await Task.Delay(100);
+                    byte[] reply=Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"version\":\"test\"}");
+                    await stream.WriteAsync(reply,0,reply.Length);
+                }
+            });
+            string previous=state.settings.baseUrl;
+            try
+            {
+                state.settings.baseUrl="http://127.0.0.1:"+port;
+                Task first=EnsureEngineAsync(),second=EnsureEngineAsync();
+                Check(object.ReferenceEquals(first,second),"Overlapping engine startup requests share one operation");
+                Pump(first,5);Pump(server,5);
+                Check(engineProcess==null,"Healthy mock endpoint does not start an inference process");
+                isClosing=true;Pump(EnsureEngineAsync(),2);
+                Check(engineProcess==null,"Closing form cannot start an engine");
+            }
+            finally{isClosing=false;state.settings.baseUrl=previous;listener.Stop();}
+        }
+
         private void CheckCancellation()
         {
             TcpListener listener=new TcpListener(IPAddress.Loopback,0);listener.Start();int port=((IPEndPoint)listener.LocalEndpoint).Port;
+            string resident=json.Serialize(new Dictionary<string,object>{{"models",new object[]{new Dictionary<string,object>{{"name",state.settings.model},{"size_vram",1024L}}}}});
             Task server=Task.Run(async delegate
             {
+                for(int check=0;check<1;check++)
+                using(TcpClient probe=await listener.AcceptTcpClientAsync())
+                using(NetworkStream probeStream=probe.GetStream())
+                {
+                    using(var reader=new StreamReader(probeStream,Encoding.ASCII,false,1024,true))
+                    {while(!string.IsNullOrEmpty(await reader.ReadLineAsync())){} }
+                    byte[] empty=Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+Encoding.UTF8.GetByteCount(resident)+"\r\nConnection: close\r\n\r\n"+resident);
+                    await probeStream.WriteAsync(empty,0,empty.Length);
+                }
                 using (TcpClient client=await listener.AcceptTcpClientAsync())
                 using (NetworkStream stream=client.GetStream())
                 {

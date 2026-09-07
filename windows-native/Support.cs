@@ -243,7 +243,10 @@ namespace MuseDeskNative
                         token.ThrowIfCancellationRequested();
                         return new ToolResult { Text = "Код завершения: " + process.ExitCode + ". Поток вывода остался открыт дочерним процессом; ожидание прекращено." };
                     }
-                    return new ToolResult { Text = "Код завершения: " + process.ExitCode + "\r\n" + await output + await errors };
+                    string stdout=await output,stderr=await errors;
+                    return new ToolResult { Text = "Код завершения: " + process.ExitCode +
+                        (stdout.Length>0?"\r\n\r\nСтандартный вывод (stdout):\r\n"+stdout:"")+
+                        (stderr.Length>0?"\r\n\r\nДиагностика (stderr):\r\n"+stderr:"") };
                 }
             }
         }
@@ -368,7 +371,7 @@ namespace MuseDeskNative
             {
                 Uri uri;
                 if (Uri.TryCreate(e.LinkText,UriKind.Absolute,out uri) && (uri.Scheme == "https" || uri.Scheme == "http"))
-                { try { System.Diagnostics.Process.Start(uri.AbsoluteUri); } catch (Exception ex) { MessageBox.Show(this,ex.Message,"Ссылка"); } }
+                { try { System.Diagnostics.Process.Start(uri.AbsoluteUri); } catch (Exception ex) { MuseDialog.Show(this,ex.Message,"Ссылка"); } }
             };
             box.MouseWheel+=delegate(object sender,MouseEventArgs e)
             {
@@ -396,7 +399,7 @@ namespace MuseDeskNative
                     string text=source();if(string.IsNullOrEmpty(text))return;
                     clipboardWriter(text);button.IconName="check";button.Invalidate();tips.SetToolTip(button,"Скопировано");reset.Stop();reset.Start();
                 }
-                catch(Exception ex){MessageBox.Show(this,"Не удалось скопировать текст.\r\n"+ex.Message,"Буфер обмена");}
+                catch(Exception ex){MuseDialog.Show(this,"Не удалось скопировать текст.\r\n"+ex.Message,"Буфер обмена");}
             };
             return button;
         }
@@ -428,8 +431,8 @@ namespace MuseDeskNative
         private int AddAnswerProse(Control card,string text,int width,int y)
         {
             if(string.IsNullOrWhiteSpace(text))return y;
-            RichTextBox answer=MakeReadableText(text.Trim('\r','\n'),width,new Font("Segoe UI",10.5F),Surface,TextInk,1600);
-            answer.AccessibleName="Ответ Muse";answer.Location=new Point(18,y);ApplyMarkdownStyles(answer);card.Controls.Add(answer);FitRichText(answer,1600);
+            RichTextBox answer=MakeReadableText(text.Trim('\r','\n'),width,new Font("Segoe UI",10.5F),Surface,TextInk,32760);
+            answer.AccessibleName="Ответ Muse";answer.Location=new Point(18,y);ApplyMarkdownStyles(answer);card.Controls.Add(answer);FitRichText(answer,32760);
             return answer.Bottom+12;
         }
 

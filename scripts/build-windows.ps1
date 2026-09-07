@@ -45,6 +45,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed.' }
     "$root\windows-native\StreamingView.cs" `
     "$root\windows-native\Permissions.cs" `
     "$root\windows-native\AgentWorkflow.cs" `
+    "$root\windows-native\ActionLog.cs" `
     "$root\windows-native\TaskSummary.cs" `
     "$root\windows-native\TextEncoding.cs" `
     "$root\windows-native\ContextBudget.cs" `

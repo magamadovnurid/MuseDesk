@@ -9,5 +9,15 @@
     "manifestPath": "manifests/registry.ollama.ai/acc100/muse-glimmer-heretic/latest",
     "manifestSha256": "8a839ee649a046a8a5be26ef694b6dd657cc64fb4712bf1a964d25b2019bbdb9",
     "downloadBytes": 20782662411
-  }
+  },
+  "additionalModels": [
+    {
+      "name": "huihui_ai/Qwen3.8-abliterated:27b",
+      "displayName": "Qwen3.8 27B Abliterated (Huihui)",
+      "manifestSha256": "bdc5e13cd1645bc409e95a7d9e864dc3ce3e5fe5beeb24a43c193e8041edd3e0",
+      "downloadBytes": 17741871954,
+      "source": "https://huggingface.co/huihui-ai/Huihui-Qwen3.8-27B-abliterated",
+      "quantization": "Q4_K_M"
+    }
+  ]
 }

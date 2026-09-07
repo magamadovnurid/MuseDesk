@@ -101,7 +101,7 @@ namespace MuseDeskNative
             StartPosition=FormStartPosition.CenterParent;BackColor=Color.White;Font=new Font("Segoe UI",10F);MinimizeBox=false;MaximizeBox=false;ShowInTaskbar=false;
             Panel heading=new Panel {Dock=DockStyle.Top,Height=112,BackColor=Color.White};
             heading.Controls.Add(new MuseMark {Tile=true,Location=new Point(28,28),Size=new Size(42,42)});
-            heading.Controls.Add(new Label {Text="Разрешить действие?",Font=new Font("Segoe UI Semibold",19F),ForeColor=Color.FromArgb(35,35,35),AutoSize=true,Location=new Point(86,25)});
+            heading.Controls.Add(new Label {Text="Разрешить действие?",Font=new Font("Segoe UI",19F),ForeColor=Color.FromArgb(35,35,35),AutoSize=true,Location=new Point(86,25)});
             heading.Controls.Add(new Label {Text=scope.Title,Font=new Font("Segoe UI",10F),ForeColor=Color.FromArgb(112,112,112),AutoSize=true,Location=new Point(89,64)});
             Panel body=new Panel {Dock=DockStyle.Fill,Padding=new Padding(28,0,28,8),BackColor=Color.White};
             RoundedComposerPanel frame=new RoundedComposerPanel {Dock=DockStyle.Fill,Radius=16,Padding=new Padding(16),BackColor=Color.FromArgb(247,247,247),BorderColor=Color.FromArgb(233,233,233)};
@@ -138,7 +138,7 @@ namespace MuseDeskNative
             chat=chat??generationChat??activeChat;
             string mode=AccessMode(chat);
             if(mode=="limited")return LimitedPathAllowed(call,chat==null?null:chat.projectPath);
-            try{scope=ToolPermissionScope.From(call);}catch(Exception ex){MessageBox.Show(this,ex.Message,"Некорректное действие");return false;}
+            try{scope=ToolPermissionScope.From(call);}catch(Exception ex){MuseDialog.Show(this,ex.Message,"Некорректное действие");return false;}
             if(mode=="full"){token.ThrowIfCancellationRequested();return true;}
             using(ToolApprovalDialog dialog=new ToolApprovalDialog(scope,description))
             using(System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer {Interval=100})
@@ -147,7 +147,7 @@ namespace MuseDeskNative
                 DialogResult decision=dialog.ShowDialog(this);token.ThrowIfCancellationRequested();
                 if(decision==DialogResult.Yes)
                 {
-                    try{PermissionStore.Grant(scope);if(chat!=null&&!string.IsNullOrEmpty(chat.accessMode)){chat.accessMode="full";SaveState();}UpdateAccessUi();}catch(Exception ex){MessageBox.Show(this,"Не удалось сохранить разрешение. Действие не выполнено.\r\n"+ex.Message,"Разрешения Muse");return false;}
+                    try{PermissionStore.Grant(scope);if(chat!=null&&!string.IsNullOrEmpty(chat.accessMode)){chat.accessMode="full";SaveState();}UpdateAccessUi();}catch(Exception ex){MuseDialog.Show(this,"Не удалось сохранить разрешение. Действие не выполнено.\r\n"+ex.Message,"Разрешения Muse");return false;}
                     return true;
                 }
                 return decision==DialogResult.OK;
@@ -158,14 +158,14 @@ namespace MuseDeskNative
         {
             using(Form manager=new Form {Text="Сохранённые разрешения · Muse Desk",ClientSize=new Size(720,460),MinimumSize=new Size(736,499),StartPosition=FormStartPosition.CenterParent,BackColor=Surface,Font=new Font("Segoe UI",10F),Icon=Icon,MinimizeBox=false,MaximizeBox=false})
             {
-                Label title=new Label {Text="Сохранённые разрешения",Font=new Font("Segoe UI Semibold",18F),AutoSize=true,Location=new Point(28,24)};
+                Label title=new Label {Text="Сохранённые разрешения",Font=new Font("Segoe UI",18F),AutoSize=true,Location=new Point(28,24)};
                 Label note=new Label {ForeColor=Muted,AutoSize=true,Location=new Point(30,66)};
                 RoundedComposerPanel card=new RoundedComposerPanel {Location=new Point(30,108),Size=new Size(660,264),Anchor=AnchorStyles.Top|AnchorStyles.Bottom|AnchorStyles.Left|AnchorStyles.Right,Radius=16,Padding=new Padding(16),BackColor=IrisSoft,BorderColor=Color.FromArgb(233,233,233)};
                 Label details=new Label {Text=ToolPermissionStore.FullAccessExplanation,Dock=DockStyle.Fill,Padding=new Padding(6),Font=new Font("Segoe UI",11F),ForeColor=TextInk};card.Controls.Add(details);
                 RoundedButton reset=ToolApprovalDialog.ActionButton("Отключить полный доступ",DialogResult.None,false,250);reset.Location=new Point(28,394);reset.Anchor=AnchorStyles.Bottom|AnchorStyles.Left;
                 Action reload=delegate{bool enabled=PermissionStore.HasFullAccess||state.chats.Any(c=>c.accessMode=="full");note.Text=enabled?"Полный доступ включён · Сохранён для всех или отдельных чатов":"Полный доступ выключен · Действия требуют подтверждения";reset.Enabled=enabled;};
                 RoundedButton done=ToolApprovalDialog.ActionButton("Готово",DialogResult.OK,true,118);done.Location=new Point(574,394);done.Anchor=AnchorStyles.Bottom|AnchorStyles.Right;
-                reset.Click+=delegate{try{PermissionStore.Save(new List<SavedToolPermission>());foreach(ChatSession c in state.chats)if(c.accessMode=="full")c.accessMode="confirm";SaveState();UpdateAccessUi();reload();}catch(Exception ex){MessageBox.Show(manager,ex.Message,"Разрешения");}};
+                reset.Click+=delegate{try{PermissionStore.Save(new List<SavedToolPermission>());foreach(ChatSession c in state.chats)if(c.accessMode=="full")c.accessMode="confirm";SaveState();UpdateAccessUi();reload();}catch(Exception ex){MuseDialog.Show(manager,ex.Message,"Разрешения");}};
                 manager.Controls.AddRange(new Control[]{title,note,card,reset,done});manager.AcceptButton=done;manager.CancelButton=done;reload();manager.ShowDialog(this);
             }
         }
