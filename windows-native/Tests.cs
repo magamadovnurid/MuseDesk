@@ -543,7 +543,10 @@ namespace MuseDeskNative
             Check(TextEncoding.Decode(new UTF8Encoding(false).GetBytes(unicode))==unicode,"UTF-8 preserves multilingual text, emoji and code symbols exactly");
             string html="<meta charset=windows-1251><h1>Магазин</h1>";Check(TextEncoding.DecodeHtml(Encoding.GetEncoding(1251).GetBytes(html),null)==html,"Web-page meta charset decodes Russian legacy HTML");
             string file=Path.Combine(output,"legacy-russian.txt");File.WriteAllBytes(file,Encoding.GetEncoding(1251).GetBytes(russian));Check(TextEncoding.ReadFile(file)==russian,"Legacy Windows text files are decoded before display and model context");
-            using(Process process=Process.Start(new ProcessStartInfo(Environment.GetEnvironmentVariable("COMSPEC"),"/d /c chcp 866>nul & echo Привет, мир! Создан файл магазина."){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true}))
+            // cmd's chcp needs a console and cannot set encoding in a headless runner.
+            // Stream a known OEM file through the real command process instead.
+            string oemFile=Path.Combine(output,"oem-russian.txt");File.WriteAllBytes(oemFile,Encoding.GetEncoding(866).GetBytes(russian));
+            using(Process process=Process.Start(new ProcessStartInfo(Environment.GetEnvironmentVariable("COMSPEC"),"/d /c type \""+oemFile+"\""){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true}))
             {ToolResult result=Pump(CollectProcessAsync(process,CancellationToken.None),5);Check(result.Text.Contains("Привет, мир! Создан файл магазина."),"Actual Windows OEM command output preserves Russian characters");}
             using(MemoryStream stream=new MemoryStream(new UTF8Encoding(false).GetBytes(new string('я',100001))))
             using(StreamReader reader=new StreamReader(stream))
