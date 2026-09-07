@@ -1,0 +1,9 @@
+{
+  "name": "muse-desk-mac",
+  "productName": "Muse Desk",
+  "version": "1.3.0",
+  "description": "Muse Desk — защищённый клиент домашней модели",
+  "main": "main.cjs",
+  "author": "Muse Desk",
+  "license": "UNLICENSED"
+}

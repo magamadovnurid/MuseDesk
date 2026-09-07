@@ -1,0 +1,13 @@
+{
+  "ollama": {
+    "version": "0.33.3",
+    "url": "https://github.com/ollama/ollama/releases/download/v0.33.3/ollama-windows-amd64.zip",
+    "sha256": "52cb36a62e7e501f61514f60212dec7117b6c098811357585e02fffe32d2fcd7"
+  },
+  "model": {
+    "name": "acc100/muse-glimmer-heretic:latest",
+    "manifestPath": "manifests/registry.ollama.ai/acc100/muse-glimmer-heretic/latest",
+    "manifestSha256": "8a839ee649a046a8a5be26ef694b6dd657cc64fb4712bf1a964d25b2019bbdb9",
+    "downloadBytes": 20782662411
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "muse-desk-build-assets",
+  "version": "1.14.0",
+  "private": true,
+  "description": "Optional icon regeneration; native Windows build does not require Node.js",
+  "engines": { "node": ">=22" },
+  "scripts": { "build:icons": "node scripts/build-icon-assets.cjs" },
+  "devDependencies": { "jszip": "3.10.1", "sharp": "0.35.4" }
+}

@@ -1,0 +1,31 @@
+name: Windows build and tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native executable
+        shell: powershell
+        run: ./scripts/build-windows.ps1
+      - name: Run isolated tests (no model or personal history)
+        shell: powershell
+        run: ./scripts/test-windows.ps1
+      - name: Upload Windows executable
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MuseDesk-Windows-x64
+          path: release/
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MuseDesk-test-report
+          path: test-output/**/results.txt

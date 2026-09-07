@@ -1,0 +1,152 @@
+[
+  {
+    "name": "folder",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 121,
+    "sha256": "ab23b8b73b9351a76204290bc65f522ccff5ec84f882d4b3cbbfc2073d1a7521"
+  },
+  {
+    "name": "folder-open",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 98,
+    "sha256": "43c58a4ee5d18253debd411f9d5fd1e8458803784b8a1df0756dde170cabf187"
+  },
+  {
+    "name": "more",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 69,
+    "sha256": "e5da71da05bf227ae604f1cbcb5dd0885a379de5aba1446f3940138e0211e1f6"
+  },
+  {
+    "name": "results",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 151,
+    "sha256": "c013df5365e7bb3766eaf867d473d2e3a484e6cc05b259ad1a557495de10ff21"
+  },
+  {
+    "name": "globe",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 0,
+    "sha256": "b2ddb3c8ec094f2d9ca8149303584d8ee1e001bddda4b64664a7c033743d64fa"
+  },
+  {
+    "name": "export",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 168,
+    "sha256": "fa0b0b82f6f03128edb9ad2762fb9a30988cebf8833778f49e7ca19756cc2d06"
+  },
+  {
+    "name": "add",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 64,
+    "sha256": "9f842087f474ac0f2df3e040454feb0d4005aa6308cbbea3efcd3c02c6c3459d"
+  },
+  {
+    "name": "sidebar",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 74,
+    "sha256": "870a3fed41399a9eada6c897cab193146f282e0e1c7ae1297943215e5f0e34ca"
+  },
+  {
+    "name": "edit",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 96,
+    "sha256": "7c8850f01c27450bfe47f5e82035b2644a2784d0db6d2a1a5997aaefab0e1032"
+  },
+  {
+    "name": "search",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 54,
+    "sha256": "a2a28b78b4441347c90032c0d38774983af5e35e1e2bba4497946a52881826b7"
+  },
+  {
+    "name": "image",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 38,
+    "sha256": "b47b309678488c22d184bbcc66589fb5d70620c6b576f8e26e79b43487e8c89c"
+  },
+  {
+    "name": "screen",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 166,
+    "sha256": "4658f423fd84a5e692be97b0e45098a9b9fff2a7cf0add22e70f9254b66d0f68"
+  },
+  {
+    "name": "mic",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 101,
+    "sha256": "97475827f7fb4587b5f13c28ec9e264c966cb0278e2450a21b9ef305022e5ec6"
+  },
+  {
+    "name": "sound",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 157,
+    "sha256": "29edeca845141f4bc2bc0a6c559bfe45833479cd9b3ff041f39de43ccc85bc4f"
+  },
+  {
+    "name": "send",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 93,
+    "sha256": "6362c3c89f26a2b30e2c07794af9a518f70b3a7ea2dbfeb45994e95197edfd58"
+  },
+  {
+    "name": "stop",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 156,
+    "sha256": "8f28476e0ab95799da3f9f7e6849821ea844b8b8b029e31ae6fa46136a717cb4"
+  },
+  {
+    "name": "copy",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 60,
+    "sha256": "b792cda0c54d7fd085b0cb7ce791a8be79876a4958d74e8ffa63040339370dda"
+  },
+  {
+    "name": "file",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 33,
+    "sha256": "85d42d6e031bdd25297f4e15dcf23d74132f46ca4b82226840f65dd034e78e13"
+  },
+  {
+    "name": "sliders",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 175,
+    "sha256": "f76d1e42924ee4b02a6f0b2502de927bed4e9bbe54ef18d670316dc628a47874"
+  },
+  {
+    "name": "chat",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 76,
+    "sha256": "b08146a83786bc9add1c378ebdf161d9cfd94e3b0820f7fd9e838c2a2947f598"
+  },
+  {
+    "name": "code",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 30,
+    "sha256": "76a88693bbf98df4abe875fd5a8548aa222a0ec25dffa6062fc319cadc661113"
+  },
+  {
+    "name": "retry",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 89,
+    "sha256": "33b7561efbc31223ecb3395b0fb33e87812dafd58e3876e5cab7a25d9efab937"
+  },
+  {
+    "name": "settings",
+    "source": "Installed Codex 26.901.6511.0 SVG asset",
+    "catalogId": 47,
+    "sha256": "eb60a4c3a059d9d422d395f25fbbff95e5f51b1ac7852de18a77e4addb4efa25"
+  },
+  {
+    "name": "check",
+    "source": "https://github.com/openai/apps-sdk-ui",
+    "component": "Check",
+    "license": "MIT"
+  },
+  {
+    "name": "spark",
+    "source": "https://github.com/openai/apps-sdk-ui",
+    "component": "Sparkle",
+    "license": "MIT"
+  }
+]
