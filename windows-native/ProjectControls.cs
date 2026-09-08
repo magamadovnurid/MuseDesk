@@ -110,7 +110,7 @@ namespace MuseDeskNative
             text.Append("\nПоследний итог модели: ").Append(ProjectMemory.Clip(memory.lastOutcome,400));
             text.Append("\nПоследние указания пользователя (фрагменты; полные версии в истории):\n").Append(string.Join("\n",UserContextNotes(chat).Reverse().Take(3).Reverse().Select(s=>ProjectMemory.Clip(s,180)).ToArray()));
             text.Append("\nПоследние события клиента:\n").Append(string.Join("\n",memory.steps.Skip(Math.Max(0,memory.steps.Count-4)).Select(s=>ProjectMemory.Clip(s,220)).ToArray()));
-            text.Append("\nПолный путь работы, исходные требования и уточнения: recall_project_history; события нумеруются с 0.");
+            text.Append("\nЕсли для задачи не хватает конкретных прошлых сведений, доступен recall_project_history; события с 0. Не перечитывай историю без необходимости. Общий совет не требует поиска файлов или других проектов.");
             int index=messages.FindIndex(m=>GetString(m,"role")!="system");
             messages.Insert(index<0?messages.Count:index,new Dictionary<string,object>{{"role","assistant"},{"content",text.ToString()}});
         }

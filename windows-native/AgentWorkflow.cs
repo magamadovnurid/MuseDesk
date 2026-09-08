@@ -16,7 +16,7 @@ namespace MuseDeskNative
         internal readonly RoundedButton ContinueButton,StopButton;
         internal AgentQuestionDialog(string question)
         {
-            Text="Вопрос по задаче · Muse Desk";ClientSize=new Size(736,550);MinimumSize=new Size(752,589);
+            Text="Вопрос по задаче · Muse Desk";ClientSize=new Size(680,460);MinimumSize=new Size(696,499);
             BackColor=Color.White;StartPosition=FormStartPosition.CenterParent;MinimizeBox=false;MaximizeBox=false;ShowInTaskbar=false;
             Font=new Font("Segoe UI",10F);
             Panel heading=new Panel{Dock=DockStyle.Top,Height=104,BackColor=Color.White};
@@ -54,7 +54,29 @@ namespace MuseDeskNative
 
     public sealed partial class MainForm
     {
-        private const string AgentInstructions="Выполняй запрос пошагово до результата, а не только описывай план. Число шагов не ограничено. После вызовов инструментов проверяй результат и продолжай незавершённую работу. Исправляй ошибки доступным способом; не повторяй без изменений неудачные действия. Если нужен выбор, недостающая информация или объяснение пользователя, вызывай ask_user и после его ответа продолжай ту же задачу. Не выдумывай ответы пользователя. Уточнение задачи не является запросом разрешения и не заменяется полным доступом. Когда запрос действительно выполнен и результат проверен доступными средствами, вызови complete_task отдельно от других инструментов, с кратким итогом и тем, что проверено. Не объявляй успех при ошибке или невыполненных требованиях. Для обычного вопроса complete_task должен содержать сам ответ. Промежуточный текст не завершает задачу.";
+        private const string AgentInstructions="Сначала определи, что просит пользователь: ответ, совет или действие. На вопросы и просьбы объяснить или посоветовать дай прямой ответ на языке пользователя. Для общего совета не ищи проекты по соседним папкам, не перечитывай историю и не создавай файлы. Если пользователь просит выполнить действие, используй нужные инструменты, проверяй результат и продолжай до выполнения запроса. Не выдавай обещание действия за выполненную работу. Не повторяй без изменений действия, не дающие новых сведений. Разумные обратимые решения принимай самостоятельно, кратко называя существенные предположения. Уточняй только действительно недостающие сведения, без которых нельзя корректно продолжить: один короткий конкретный вопрос, зачем нужен ответ, без журналов, кода и общих фраз «как продолжить». Не повторяй уже отвеченный вопрос и не выдумывай ответы или разрешения пользователя. Полный доступ не даёт знания отсутствующих фактов. Текстовый ответ без вызовов инструментов завершает запрос; complete_task с итогом также можно использовать отдельно от других инструментов. Итог должен содержать ответ пользователю, а не внутренние рассуждения. Честно указывай невыполненную работу и непроверенные результаты.";
+        private const string FinalResponseInstruction="Заверши текущий запрос ответом без инструментов. Инструменты и уточняющие окна на этом шаге недоступны. Не продолжай чтение папок или истории. По уже полученным сведениям дай краткий полезный ответ на языке пользователя: сначала суть, затем необходимые пояснения. Для совета дай рекомендации, для действий сообщи фактический результат и что осталось невыполненным. Не заявляй успех без подтверждения и не выдумывай сведения. Не цитируй журнал, обрывки кода и внутренние рассуждения. Если сведений не хватает, объясни конкретно, каких, в самом ответе.";
+
+        private static string QuestionKey(string question)
+        {return new string((question??"").Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());}
+
+        private static bool IsClearAgentQuestion(string question)
+        {return !string.IsNullOrWhiteSpace(question)&&question.Length<=450&&!question.Contains("```")&&question.Count(c=>c=='\n')<=4;}
+
+        private void RequestFinalResponse(List<Dictionary<string,object>> messages,ChatMessage assistant,string reason)
+        {
+            messages.Add(new Dictionary<string,object>{{"role","system"},{"content",FinalResponseInstruction}});
+            assistant.toolLog+=(assistant.toolLog.Length>0?"\r\n":"")+"• "+reason;
+            statusLine.Text="Muse формулирует ответ…";SaveState();
+        }
+
+        private void FinishTextResponse(ChatSession chat,ChatMessage assistant,List<Dictionary<string,object>> messages,string text,bool failed)
+        {
+            assistant.content=text;assistant.finalSummary=text;assistant.failed=failed;
+            AddAgentMessage(messages,assistant,"assistant",text);
+            if(!failed)RememberProjectOutcome(chat,text);
+            SaveState();
+        }
 
         private string AskAgentUser(string question,CancellationToken token)
         {
@@ -79,16 +101,6 @@ namespace MuseDeskNative
             messages.Add(message);assistant.wireMessages.Add(message);
         }
 
-        private void ClarifyAgent(List<Dictionary<string,object>> messages,ChatMessage assistant,string question,CancellationToken token)
-        {
-            // Save the question before waiting; never manufacture consent or an answer.
-            AddAgentMessage(messages,assistant,"assistant",question);
-            assistant.toolLog+="\r\n• Вопрос: "+question;SaveState();
-            string answer=AskAgentUser(question,token);
-            AddAgentMessage(messages,assistant,"user",answer);
-            assistant.toolLog+="\r\n• Ваш ответ: "+answer;SaveState();
-        }
-
         private async Task RunAgentLoopAsync(ChatSession chat,ChatMessage assistant,CancellationToken token,
             Func<List<Dictionary<string,object>>,ChatMessage,CancellationToken,Task<ModelTurn>> stream)
         {
@@ -99,7 +111,8 @@ namespace MuseDeskNative
             ContextBudget budget=new ContextBudget(messages,RuntimeToolsEnabled?System.Text.Encoding.UTF8.GetByteCount(json.Serialize(BuildToolDefinitions()))/2:0,userRequest!=null&&userRequest.files!=null&&userRequest.files.Count>0?userRequest.content??"":null);
             int effectiveContext=state.settings.contextSize,contextRetries=0,networkRetries=0,retryDelay=0;
             double budgetFactor=1;
-            AgentProgressGuard guard=new AgentProgressGuard();int emptyTurns=0;long step=0;
+            AgentProgressGuard guard=new AgentProgressGuard();int questions=0,invalidQuestions=0;long step=0;
+            bool finalizing=false;HashSet<string> answeredQuestions=new HashSet<string>();
             try
             {
             while(true)
@@ -137,26 +150,24 @@ namespace MuseDeskNative
                     if(api!=null && api.Status>=400 && api.Status<500 && api.Status!=408 && api.Status!=429)
                         throw new InvalidOperationException("Модель отклонила запрос (HTTP "+api.Status+"): "+api.Message+" Повтор без изменения настроек не выполняется.");
                     if(++networkRetries<=2){assistant.contextNotice="Соединение с моделью прервалось — повторяю запрос ("+networkRetries+"/2)";retryDelay=networkRetries*700;continue;}
-                    ClarifyAgent(messages,assistant,"Не удалось продолжить запрос к локальной модели: "+ex.Message+"\r\nПроверьте движок. Напишите «повторить» или уточните, как продолжить.",token);
-                    networkRetries=0;
-                    continue;
+                    throw new InvalidOperationException("Связь с локальной моделью не восстановилась после двух повторов. Проверьте состояние модели и повторите запрос. История и выполненные действия сохранены.",ex);
                 }
                 networkRetries=0;contextRetries=0;
                 if(!string.IsNullOrEmpty(assistant.contextNotice)&&assistant.contextNotice.StartsWith("Соединение с моделью"))assistant.contextNotice="";
                 if(turn.TokensPerSecond>0)assistant.tokensPerSecond=turn.TokensPerSecond;
+                if(finalizing)
+                {
+                    bool unusable=turn.Calls.Count>0||string.IsNullOrWhiteSpace(turn.Content);
+                    FinishTextResponse(chat,assistant,messages,unusable?"Не удалось получить содержательный ответ: модель зациклилась. Повторяющиеся действия остановлены; задача не завершена. Выполненные действия сохранены в журнале.":turn.Content,unusable);
+                    return;
+                }
                 if(!RuntimeToolsEnabled && turn.Calls.Count>0)throw new InvalidOperationException("Модель запросила действие, но инструменты недоступны или выключены. Действие не выполнено.");
                 if(turn.Calls.Count==0)
                 {
-                    AddAgentMessage(messages,assistant,"assistant",turn.Content);
-                    if(!RuntimeToolsEnabled){assistant.finalSummary=turn.Content;RememberProjectOutcome(chat,turn.Content);assistant.fileChanges=changes.GetChanges();SaveState();return;}
-                    if(++emptyTurns>=3)
-                    {
-                        ClarifyAgent(messages,assistant,"Модель несколько раз ответила текстом, но не обозначила завершение и не выполнила следующий шаг.\r\nПоследний ответ: "+Compact(turn.Content,1600)+"\r\nЧто нужно сделать дальше?",token);emptyTurns=0;
-                    }
-                    else messages.Add(new Dictionary<string,object>{{"role","system"},{"content","Продолжай действия инструментами. Если нужен ответ пользователя — ask_user. Если всё выполнено — complete_task с итогом. Один текст без этого не завершает задачу."}});
-                    SaveState();continue;
+                    if(!string.IsNullOrWhiteSpace(turn.Content)){FinishTextResponse(chat,assistant,messages,turn.Content,false);return;}
+                    finalizing=true;RequestFinalResponse(messages,assistant,"Модель не дала ответа. Формирую итог без дополнительных действий.");
+                    continue;
                 }
-                emptyTurns=0;
                 Dictionary<string,object> assistantCall=new Dictionary<string,object>{{"role","assistant"},{"content",turn.Content},{"thinking",turn.Thinking},{"tool_calls",turn.Calls.Select(c=>(object)c.Raw).ToList()}};
                 messages.Add(assistantCall);assistant.wireMessages.Add(assistantCall);
                 bool replan=false,stalled=false,completed=false;string summary="";
@@ -164,7 +175,7 @@ namespace MuseDeskNative
                 {
                     token.ThrowIfCancellationRequested();ToolResult result;
                     if(replan)result=new ToolResult{Text="Не выполнено: получено уточнение пользователя. Перепланируй следующие действия с учётом ответа."};
-                    else if(stalled)result=new ToolResult{Text="Не выполнено: обнаружены повторяющиеся результаты. Продолжение после уточнения пользователя."};
+                    else if(stalled)result=new ToolResult{Text="Не выполнено: повторяющиеся действия остановлены. Дай итог по уже полученным сведениям."};
                     else if(call.Name=="complete_task")
                     {
                         summary=Argument(call,"summary").Trim();
@@ -174,9 +185,13 @@ namespace MuseDeskNative
                     else if(call.Name=="ask_user")
                     {
                         string question=Argument(call,"question").Trim();
-                        if(question.Length==0)result=new ToolResult{Text="Укажи непустой вопрос пользователю."};
+                        if(questions>=2||answeredQuestions.Contains(QuestionKey(question)))
+                        {result=new ToolResult{Text="Не задавай повторных вопросов. Используй имеющиеся ответы и дай итог, указав реальные ограничения."};stalled=true;}
+                        else if(!IsClearAgentQuestion(question))
+                        {result=new ToolResult{Text="Сократи уточнение: один конкретный вопрос и причина, не более 450 символов и четырёх переносов строки. Без кода и журналов."};replan=true;if(++invalidQuestions>=2)stalled=true;}
                         else
                         {
+                            questions++;answeredQuestions.Add(QuestionKey(question));
                             assistant.toolLog+="\r\n• Вопрос: "+question;SaveState();
                             string answer=AskAgentUser(question,token);result=new ToolResult{Text="Ответ пользователя: "+answer};replan=true;
                         }
@@ -206,12 +221,11 @@ namespace MuseDeskNative
                     assistant.content+=(assistant.content.Length>0?"\r\n\r\n":"")+summary;
                     AddAgentMessage(messages,assistant,"assistant",summary);RememberProjectOutcome(chat,summary);SaveState();return;
                 }
-                if(replan)guard.Reset();
-                else if(stalled)
+                if(stalled)
                 {
-                    ClarifyAgent(messages,assistant,"Одно и то же действие уже трижды вернуло одинаковый результат. Muse приостановила повторения.\r\nПоследние действия:\r\n"+Compact(assistant.toolLog.Length>1800?assistant.toolLog.Substring(assistant.toolLog.Length-1800):assistant.toolLog,1800)+"\r\nУточните, как продолжить, или напишите «попробуй другой способ».",token);
-                    guard.Reset();
+                    finalizing=true;RequestFinalResponse(messages,assistant,"Повторы остановлены. Формирую итог по полученным сведениям.");
                 }
+                else if(replan)guard.Reset();
                 if(activeChat==chat)RenderConversation();
             }
             }

@@ -800,13 +800,41 @@ namespace MuseDeskNative
             Check(!File.Exists(Path.Combine(site,"stale.txt")),"Actions planned before a clarification are skipped until the model replans");
 
             int textSteps=0;
-            RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
-            {textSteps=step;return step<=2?new ModelTurn{Content="Сейчас продолжу работу."}:WorkflowTurn(WorkflowCall("complete_task","summary","Готово."));},null);
-            Check(textSteps==3,"Intermediate prose does not prematurely finish an agent task");
+            ChatMessage advice=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {textSteps=step;return new ModelTurn{Content="Для другого домена настройте обратное проксирование."};},null);
+            Check(textSteps==1&&advice.finalSummary==advice.content&&advice.content.Contains("проксирование"),"A substantive text answer completes in one turn even when tools are available");
             int stalledQuestions=0;
+            ChatMessage recovered=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {
+                if(step<=3)return WorkflowTurn(WorkflowCall("missing_tool"));
+                var body=CreateModelRequest(messages);
+                Check(!body.ContainsKey("tools")&&!GetBool(body,"think")&&GetNumber(GetDictionary(body,"options"),"num_predict")==2048,"Recovery request disables tools and reasoning and bounds generated tokens");
+                return new ModelTurn{Content="Действие выполнить не удалось. Вот что можно сделать по имеющимся сведениям."};
+            },delegate(AgentQuestionDialog dialog){stalledQuestions++;dialog.StopButton.PerformClick();});
+            Check(stalledQuestions==0&&recovered.content.Contains("имеющимся сведениям"),"Repeated failures produce a useful final response without asking how to continue");
+            int emptySteps=0;
+            ChatMessage noAnswer=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {emptySteps=step;return new ModelTurn{Thinking="Synthetic repeated reasoning"};},null);
+            Check(emptySteps==2&&noAnswer.failed&&noAnswer.content.Contains("зациклилась"),"Thinking-only turns stop after one bounded recovery and cannot become a blank success");
+            string forbidden=Path.Combine(site,"must-not-run-during-recovery.txt");
+            ChatMessage rogueRecovery=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {return step==1?new ModelTurn():WorkflowTurn(WorkflowCall("write_text_file","path",forbidden,"content","must not run"));},null);
+            Check(rogueRecovery.failed&&!File.Exists(forbidden),"Unexpected tool calls during final recovery are never executed");
+            int repeatedQuestions=0;
+            ChatMessage repeatedQuestion=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {return step<=2?WorkflowTurn(WorkflowCall("ask_user","question",step==1?"Какой домен использовать?":"Какой домен использовать?!")):new ModelTurn{Content="Используем указанный домен example.org."};},delegate(AgentQuestionDialog dialog){repeatedQuestions++;dialog.Answer.Text="example.org";dialog.ContinueButton.PerformClick();});
+            Check(repeatedQuestions==1&&repeatedQuestion.content.Contains("example.org"),"An answered question is not displayed again even if punctuation changes");
+            int repairedQuestions=0;
             RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
-            {return step<=3?WorkflowTurn(WorkflowCall("missing_tool")):WorkflowTurn(WorkflowCall("complete_task","summary","Завершено после уточнения."));},delegate(AgentQuestionDialog dialog){stalledQuestions++;dialog.Answer.Text="Попробуй другой способ";dialog.ContinueButton.PerformClick();});
-            Check(stalledQuestions==1,"Repeated identical unsuccessful actions pause once for guidance and then resume");
+            {
+                if(step==1)return WorkflowTurn(WorkflowCall("ask_user","question",new string('x',1000)));
+                if(step==2)return WorkflowTurn(WorkflowCall("ask_user","question","Какой адрес сайта использовать? Он нужен для настройки прокси."));
+                return new ModelTurn{Content="Адрес получен."};
+            },delegate(AgentQuestionDialog dialog){repairedQuestions++;dialog.Answer.Text="example.org";dialog.ContinueButton.PerformClick();});
+            Check(repairedQuestions==1,"Verbose questions are reformulated internally before opening a dialog");
+            ChatMessage badQuestions=RunScriptedAgent(delegate(int step,List<Dictionary<string,object>> messages)
+            {return step<=2?WorkflowTurn(WorkflowCall("ask_user","question","```html\n<div>technical log</div>\n```")):new ModelTurn{Content="Для настройки понадобится адрес сайта."};},null);
+            Check(badQuestions.content.Contains("адрес сайта"),"Repeated malformed clarification requests fall back to text without showing logs");
             AgentProgressGuard alternating=new AgentProgressGuard();
             Check(!alternating.Repeats("A") && !alternating.Repeats("B") && !alternating.Repeats("A") && !alternating.Repeats("B") && alternating.Repeats("A"),"Loop detection catches alternating repeated results");
             alternating.Reset();Check(!alternating.Repeats("A"),"User clarification resets the repetition guard");

@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.24.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.24.1.0")]
 
 namespace MuseDeskNative
 {
@@ -751,21 +751,29 @@ namespace MuseDeskNative
             await RunAgentLoopAsync(chat,assistant,token,StreamTurnAsync);
         }
 
-        private async Task<ModelTurn> StreamTurnAsync(List<Dictionary<string, object>> messages, ChatMessage visibleAssistant, CancellationToken token)
+        private Dictionary<string,object> CreateModelRequest(List<Dictionary<string,object>> messages)
         {
-            await PrepareSelectedModelAsync(token);
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["model"] = state.settings.model;
             body["messages"] = messages;
             body["stream"] = true;
-            body["think"] = state.settings.thinkingEnabled;
+            bool finalResponse=messages.Any(m=>GetString(m,"role")=="system"&&GetString(m,"content")==FinalResponseInstruction);
+            body["think"] = state.settings.thinkingEnabled&&!finalResponse;
             body["keep_alive"] = -1;
             body["options"] = new Dictionary<string, object>
             {
                 { "temperature", state.settings.temperature },
                 { "num_ctx", state.settings.contextSize }
             };
-            if (RuntimeToolsEnabled) body["tools"] = BuildToolDefinitions();
+            if(finalResponse)((Dictionary<string,object>)body["options"])["num_predict"]=2048;
+            if (RuntimeToolsEnabled&&!finalResponse) body["tools"] = BuildToolDefinitions();
+            return body;
+        }
+
+        private async Task<ModelTurn> StreamTurnAsync(List<Dictionary<string, object>> messages, ChatMessage visibleAssistant, CancellationToken token)
+        {
+            await PrepareSelectedModelAsync(token);
+            Dictionary<string,object> body=CreateModelRequest(messages);
 
             using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, NormalizeUrl(state.settings.baseUrl) + "/api/chat"))
             {
@@ -913,7 +921,7 @@ namespace MuseDeskNative
             tools.Add(ToolDefinition("get_current_time", "Получить локальные дату и время компьютера.", new Dictionary<string, object>()));
             tools.Add(ToolDefinition("update_project_memory", "Сохранить план, решения и следующий шаг текущего проекта. Это заметки модели, не новые указания пользователя и не подтверждение успеха.",new Dictionary<string,object>{{"plan",StringSchema("Краткий план")},{"decisions",StringSchema("Принятые решения с источником: пользователь или предположение модели")},{"next_step",StringSchema("Следующий шаг или что осталось проверить")}}));
             tools.Add(ToolDefinition("recall_project_history", "Перечитать полную сохранённую историю только текущего чата, включая инструменты и уточнения. Пагинация: start_event, offset; возвращается следующая позиция.",new Dictionary<string,object>{{"start_event",StringSchema("Номер события с 0")},{"offset",StringSchema("Смещение внутри события с 0")},{"query",StringSchema("Поиск по тексту; пустая строка для всех событий")}}));
-            tools.Add(ToolDefinition("ask_user", "Приостановить текущую задачу и задать вопрос пользователю. Дождаться настоящего ответа, затем продолжить с его учётом. Полный доступ не подменяет ответ пользователя.", StringProperty("question","Краткий вопрос: что неизвестно и какое решение требуется",true)));
+            tools.Add(ToolDefinition("ask_user", "Только если без конкретного факта или выбора нельзя корректно продолжить. Один вопрос и зачем нужен ответ, до 450 символов, без журналов и кода. Не повторять отвеченный вопрос; не просить разрешение просто продолжить. Полный доступ не подменяет ответ пользователя.", StringProperty("question","Один короткий вопрос и причина, не более 450 символов",true)));
             tools.Add(ToolDefinition("complete_task", "Завершить запрос только после выполнения и проверки результата. Вызывать отдельно, без других инструментов. Для обычного вопроса передать ответ в summary.", StringProperty("summary","Итог для пользователя: что сделано, где результат и что проверено; не выдумывай успех",true)));
             tools.Add(ToolDefinition("list_directory", "Показать содержимое указанной папки. Разрешения проверяет приложение с учётом режима полного доступа.", StringProperty("path", "Полный путь к папке", true)));
             var readDefinition=ToolDefinition("read_text_file", "Прочитать текстовый файл, при необходимости частями через start_line и max_lines. Разрешения проверяет приложение.", StringProperty("path", "Полный путь к файлу", true));
