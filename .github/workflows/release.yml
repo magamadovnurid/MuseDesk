@@ -91,4 +91,4 @@ jobs:
         run: |
           cd packages
           sha256sum *.exe *.zip *.dmg > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" ./* --prerelease --title "Muse Desk $GITHUB_REF_NAME · Windows + Apple Silicon" --notes-file ../docs/RELEASE-NOTES.md
+          gh release create "$GITHUB_REF_NAME" ./* --latest --title "Muse Desk $GITHUB_REF_NAME · Windows x64 + macOS Apple Silicon (Preview)" --notes-file ../docs/RELEASE-NOTES.md

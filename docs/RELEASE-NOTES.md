@@ -1,15 +1,17 @@
 # Muse Desk 1.24.0 — Windows + Apple Silicon
 
+> **Preview — предварительная версия.** Пометка Latest означает самый новый доступный выпуск, а не завершённую аппаратную приёмку. Ограничения подписи и совместимости описаны ниже.
+
 В одном выпуске — приложение для Windows и новая локальная версия для macOS на Apple Silicon. Mac запускает Glimmer самостоятельно, без подключения к Windows.
 
 ## Выберите файл
 
 | Компьютер | Файл |
 |---|---|
-| Windows x64, новая установка | **MuseDesk-Windows-x64-Setup.exe** |
-| Windows, только приложение без движка/модели | MuseDesk-Windows-x64-App.zip |
-| Mac с Apple Silicon | **MuseDesk-1.24.0-macOS-AppleSilicon.dmg** |
-| Mac, архив того же приложения | MuseDesk-1.24.0-macOS-AppleSilicon.zip |
+| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.0-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
+| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.0-preview.1/MuseDesk-Windows-x64-App.zip) |
+| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.0-preview.1/MuseDesk-1.24.0-macOS-AppleSilicon.dmg)** |
+| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.0-preview.1/MuseDesk-1.24.0-macOS-AppleSilicon.zip) |
 
 Контрольные суммы всех пакетов — **SHA256SUMS.txt**. Исходники доступны стандартными архивами GitHub. Веса модели не включены в пакеты: они скачиваются мастером настройки.
 
