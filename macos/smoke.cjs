@@ -39,7 +39,7 @@ async function run(win,store,app){
     assert.match(await script('document.getElementById("topic-preview").textContent'),/найти материал.*поиск/s);
     assert.equal(await script('(()=>{const r=document.getElementById("topic-preview").getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})()'),true);
     await script('document.querySelectorAll("#topic-nav button")[1].click()');
-    for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,50));if(await script('Math.abs(document.querySelectorAll("#messages article")[2].getBoundingClientRect().top-document.getElementById("messages").getBoundingClientRect().top-12)<2'))break;}
+    for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,50));if(await script('Math.abs(document.querySelectorAll("#messages article")[2].getBoundingClientRect().top-document.getElementById("messages").getBoundingClientRect().top-12)<2 && document.querySelectorAll("#topic-nav button")[1].getAttribute("aria-current")==="true"'))break;}
     const jump=await script('({top:document.querySelectorAll("#messages article")[2].getBoundingClientRect().top,host:document.getElementById("messages").getBoundingClientRect().top,scroll:document.getElementById("messages").scrollTop})');
     assert.ok(Math.abs(jump.top-jump.host-12)<2,JSON.stringify(jump));
     assert.equal(await script('document.querySelectorAll("#topic-nav button")[1].getAttribute("aria-current")'),'true');
