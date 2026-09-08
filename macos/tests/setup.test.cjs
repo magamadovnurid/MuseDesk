@@ -19,6 +19,6 @@ test('Cancellation preserves partial downloads and rejects invalid complete byte
 });
 test('Archive paths cannot escape the runtime folder',()=>{validateArchiveEntries(['./ollama','./lib/ollama/runner']);for(const entry of ['/tmp/out','../out','lib/../../out'])assert.throws(()=>validateArchiveEntries([entry]));});
 test('Registration selects the correct image encoder and arm64 metadata',()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'muse-manifest-'));register(root,'glimmer-q4-f16');const manifest=JSON.parse(fs.readFileSync(path.join(root,'models/manifests/registry.ollama.ai/acc100/muse-glimmer-heretic/latest')));
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'muse-manifest-'));register(root,'glimmer-q4-f16',{platform:'darwin',arch:'arm64'});const manifest=JSON.parse(fs.readFileSync(path.join(root,'models/manifests/registry.ollama.ai/acc100/muse-glimmer-heretic/latest')));
   assert.equal(manifest.layers[1].digest,'sha256:'+catalog.files[2].sha256);const config=JSON.parse(fs.readFileSync(path.join(root,'models/blobs',manifest.config.digest.replace(':','-'))));assert.equal(config.architecture,'arm64');assert.equal(config.os,'darwin');assert.equal(config.renderer,'glimmer');
 });

@@ -27,7 +27,7 @@ class Engine{
     if(this.closed)throw Error('Движок остановлен');
     const executable=findEngine(this.root);if(!executable)throw Error('Сначала установите локальный движок');
     const log=fs.openSync(path.join(this.root,'engine.log'),'a',0o600);
-    this.child=spawn(executable,['serve'],{cwd:path.dirname(executable),env:{...process.env,OLLAMA_HOST:'127.0.0.1:11436',OLLAMA_MODELS:path.join(this.root,'models'),OLLAMA_MAX_LOADED_MODELS:'1',OLLAMA_NUM_PARALLEL:'1',OLLAMA_NO_CLOUD:'1',OLLAMA_KEEP_ALIVE:'-1'},stdio:['ignore',log,log],windowsHide:true});
+    this.child=spawn(executable,['serve'],{cwd:path.dirname(executable),env:{...process.env,OLLAMA_HOST:'127.0.0.1:11436',OLLAMA_MODELS:path.join(this.root,'models'),OLLAMA_MAX_LOADED_MODELS:'1',OLLAMA_NUM_PARALLEL:'1',OLLAMA_NO_CLOUD:'1',OLLAMA_KEEP_ALIVE:'-1',...(process.platform==='linux'?{CUDA_VISIBLE_DEVICES:this.probe(this.root).gpu?.uuid||'-1',OLLAMA_VULKAN:'0'}:{})},stdio:['ignore',log,log],windowsHide:true});
     fs.closeSync(log);let startupError=null;this.child.on('error',e=>{startupError=e;});
     this.child.on('exit',()=>{this.selected=null;if(!this.closed)this.status({state:'stopped',message:'Движок остановлен. Повторите загрузку.'});});
     for(let i=0;i<60;i++){if(startupError)throw startupError;if(this.child.exitCode!==null)throw Error('Движок завершился. Подробности в engine.log');try{await this.api('/api/version',null,{timeout:1000});return;}catch{}await sleep(500);}

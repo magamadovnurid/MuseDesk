@@ -14,7 +14,7 @@ const definitions=[
 ];
 function command(command,cwd,signal){return new Promise((resolve,reject)=>{
   if(signal?.aborted)return reject(Error('Остановлено'));
-  const child=spawn('/bin/zsh',['-lc',command],{cwd,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});let output='',ended=false;
+  const child=spawn(process.platform==='linux'?'/bin/bash':'/bin/zsh',['-lc',command],{cwd,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});let output='',ended=false;
   let hardStop;
   const stop=()=>{try{if(process.platform==='win32')child.kill();else process.kill(-child.pid,'SIGTERM');}catch{};if(!hardStop){hardStop=setTimeout(()=>{try{if(process.platform==='win32')child.kill('SIGKILL');else process.kill(-child.pid,'SIGKILL');}catch{}},2000);hardStop.unref();}};
   let timedOut=false;const timer=setTimeout(()=>{timedOut=true;stop();},120000);signal?.addEventListener('abort',stop,{once:true});

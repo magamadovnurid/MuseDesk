@@ -6,7 +6,8 @@ const os=require('node:os');
 const {spawn,execFileSync}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const {compatibilityFor,requireGlimmer,atomicJSON,GiB}=require('./core.cjs');
-const catalog=require('./catalog.json');
+const sourceCatalog=require('./catalog.json');
+const catalog={...sourceCatalog,engine:process.platform==='linux'?sourceCatalog.linuxEngine:sourceCatalog.engine};
 const {checkEngine}=require('./components.cjs');
 const abort=signal=>{if(signal?.aborted)throw Error('Установка остановлена. Скачанные части сохранены.');};
 async function hashFile(file){const hash=createHash('sha256');for await(const chunk of fs.createReadStream(file))hash.update(chunk);return hash.digest('hex');}
@@ -34,15 +35,15 @@ function probe(root){
   if(process.platform==='darwin'){try{osVersion=execFileSync('/usr/bin/sw_vers',['-productVersion'],{encoding:'utf8',timeout:5000}).trim();major=Number(osVersion.split('.')[0]);}catch{osVersion='не определена';}try{chip=execFileSync('/usr/sbin/sysctl',['-n','machdep.cpu.brand_string'],{encoding:'utf8',timeout:5000}).trim();}catch{}}
   if(process.platform==='darwin'){try{const value=execFileSync('/usr/sbin/sysctl',['-n','hw.memsize'],{encoding:'utf8',timeout:5000}).trim();ramBytes=/^\d+$/.test(value)?Number(value):NaN;if(ramBytes!==os.totalmem())ramBytes=NaN;}catch{}}
   let freeBytes=NaN;try{const disk=fs.statfsSync(root);freeBytes=disk.bavail*disk.bsize;}catch{}
-  const hardware={platform:process.platform,arch:process.arch,major,ramBytes,freeBytes,chip,osVersion,memorySource:'sysctl hw.memsize, checked against os.totalmem'};
+  const hardware={platform:process.platform,arch:process.arch,major,ramBytes,freeBytes,chip,osVersion,memorySource:'sysctl hw.memsize, checked against os.totalmem',...(process.platform==='linux'?require('./linux-platform.cjs').probeLinux():{})};
   // Already allocated verified/partial components count toward the original disk budget on resume.
-  let allocated=0;for(const spec of [catalog.engine,...catalog.files]){const p=spec===catalog.engine?path.join(root,'downloads','ollama.tgz'):path.join(root,'models','blobs','sha256-'+spec.sha256);for(const candidate of [p,p+'.part']){try{allocated+=Math.min(fs.statSync(candidate).size,spec.bytes);}catch{}}}
+  let allocated=0;for(const spec of [catalog.engine,...catalog.files]){const p=spec===catalog.engine?path.join(root,'downloads',process.platform==='linux'?'ollama.tar.zst':'ollama.tgz'):path.join(root,'models','blobs','sha256-'+spec.sha256);for(const candidate of [p,p+'.part']){try{allocated+=Math.min(fs.statSync(candidate).size,spec.bytes);}catch{}}}
   const result={...hardware,budgetFreeBytes:freeBytes+allocated};const compatibility=compatibilityFor(result);const checked={...result,profile:compatibility.profile,compatibility};atomicJSON(path.join(root,'hardware-check.json'),{...checked,checkedAt:new Date().toISOString(),purpose:'system-check'});return checked;
 }
 function blob(root,text){const bytes=Buffer.from(text),hash=createHash('sha256').update(bytes).digest('hex');fs.mkdirSync(root,{recursive:true});fs.writeFileSync(path.join(root,'sha256-'+hash),bytes);return {digest:'sha256:'+hash,size:bytes.length};}
-function register(root,profile){
+function register(root,profile,hardware={platform:process.platform,arch:process.arch}){
   const blobs=path.join(root,'models','blobs'),model=catalog.files[0],projector=catalog.files[profile==='glimmer-q4-f16'?2:1];
-  const config=blob(blobs,JSON.stringify({model_format:'gguf',model_family:'muse-glimmer',model_families:['muse-glimmer'],model_type:'27.9B',file_type:'Q4_K_M',renderer:'glimmer',parser:'glimmer',requires:'0.32.8',architecture:'arm64',os:'darwin'}));
+  const config=blob(blobs,JSON.stringify({model_format:'gguf',model_family:'muse-glimmer',model_families:['muse-glimmer'],model_type:'27.9B',file_type:'Q4_K_M',renderer:'glimmer',parser:'glimmer',requires:'0.32.8',architecture:hardware.arch==='x64'?'amd64':hardware.arch,os:hardware.platform}));
   const params=blob(blobs,JSON.stringify({temperature:1,top_k:64,top_p:0.95,num_ctx:8192}));
   const manifest={schemaVersion:2,mediaType:'application/vnd.docker.distribution.manifest.v2+json',config:{mediaType:'application/vnd.docker.container.image.v1+json',...config},layers:[{mediaType:'application/vnd.ollama.image.model',digest:'sha256:'+model.sha256,size:model.bytes},{mediaType:'application/vnd.ollama.image.projector',digest:'sha256:'+projector.sha256,size:projector.bytes},{mediaType:'application/vnd.ollama.image.params',...params}]};
   atomicJSON(path.join(root,'models','manifests','registry.ollama.ai','acc100','muse-glimmer-heretic','latest'),manifest);
@@ -55,7 +56,7 @@ async function install(root,{signal,onProgress=()=>{},engineOnly=false}={},servi
     const hardware=scan(root),compatibility=compatibilityFor(hardware);
     atomicJSON(path.join(root,'hardware-check.json'),{...hardware,compatibility,checkedAt:new Date().toISOString(),purpose:engineOnly?'engine-only':'glimmer'});
     if(!engineOnly)requireGlimmer(hardware);
-    else if(!compatibility.appSupported||!Number.isFinite(hardware.freeBytes)||hardware.freeBytes<2*GiB)throw Error(compatibility.reasons.join(' ')||'Для движка нужно 2 ГиБ свободного места.');
+    else if(!compatibility.appSupported||!Number.isFinite(hardware.freeBytes)||hardware.freeBytes<(process.platform==='linux'?8:2)*GiB)throw Error(compatibility.reasons.join(' ')||'Недостаточно места для движка (Ubuntu: 8 ГиБ, Mac: 2 ГиБ).');
     return {...hardware,profile:compatibility.profile};
   };
   let hardware=verify();
@@ -63,13 +64,13 @@ async function install(root,{signal,onProgress=()=>{},engineOnly=false}={},servi
   report({stage:'components',message:'Проверяем обновления компонентов',percent:-1});
   const components=await checkComponents(catalog.engine,{signal});report({stage:'components',message:components.message,percent:-1});
   atomicJSON(path.join(root,'components.json'),{...components,checkedAt:new Date().toISOString()});
-  const archive=path.join(root,'downloads','ollama.tgz');report({stage:'engine',message:'Скачиваем движок для Apple Silicon',percent:-1});
+  const archive=path.join(root,'downloads',process.platform==='linux'?'ollama.tar.zst':'ollama.tgz');report({stage:'engine',message:process.platform==='linux'?'Скачиваем движок для Ubuntu':'Скачиваем движок для Apple Silicon',percent:-1});
   await fetchComponent(catalog.engine,archive,{signal,onProgress:report});
   const runtime=path.join(root,'runtime',catalog.engine.version);await fsp.mkdir(runtime,{recursive:true});
-  const entries=await execute('/usr/bin/tar',['-tzf',archive],{signal});validateArchiveEntries(entries.split('\n'));
-  report({stage:'extract',message:'Подготавливаем локальный движок',percent:-1});await execute('/usr/bin/tar',['-xzf',archive,'-C',runtime],{signal});
+  const entries=await execute('/usr/bin/tar',[process.platform==='linux'?'--zstd':'-z','-tf',archive],{signal});validateArchiveEntries(entries.split('\n'));
+  report({stage:'extract',message:'Подготавливаем локальный движок',percent:-1});await execute('/usr/bin/tar',[process.platform==='linux'?'--zstd':'-z','-xf',archive,'-C',runtime],{signal});
   const exe=locate(root);if(!exe)throw Error('Архив не содержит движок Ollama');await fsp.chmod(exe,0o755);
-  if(!engineOnly){hardware=verify();for(const spec of [catalog.files[0],catalog.files[hardware.profile==='glimmer-q4-f16'?2:1]]){report({stage:'model',message:spec.file,percent:-1});await fetchComponent(spec,path.join(root,'models','blobs','sha256-'+spec.sha256),{signal,onProgress:report});}abort(signal);register(root,hardware.profile);}
+  if(!engineOnly){hardware=verify();for(const spec of [catalog.files[0],catalog.files[hardware.profile==='glimmer-q4-f16'?2:1]]){report({stage:'model',message:spec.file,percent:-1});await fetchComponent(spec,path.join(root,'models','blobs','sha256-'+spec.sha256),{signal,onProgress:report});}abort(signal);register(root,hardware.profile,hardware);}
   atomicJSON(path.join(root,'installation.json'),{status:'complete',profile:engineOnly?'engine-only':hardware.profile,source:catalog.source,revision:catalog.revision,installedAt:new Date().toISOString()});
   report({stage:'complete',message:engineOnly?'Движок установлен. Добавьте совместимую модель.':'Muse Glimmer установлена. Подготавливаем модель…',percent:100});return hardware;
 }

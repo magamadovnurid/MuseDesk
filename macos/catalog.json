@@ -36,5 +36,11 @@
     "bytes": 159236337,
     "sha256": "342db03df80bb9db84ff64246031bd5f70c09b59ff52fa5cc9aaae3476cc4a9d"
   },
-  "schema": 1
+  "schema": 1,
+  "linuxEngine": {
+    "version": "0.33.3",
+    "url": "https://github.com/ollama/ollama/releases/download/v0.33.3/ollama-linux-amd64.tar.zst",
+    "bytes": 1433825108,
+    "sha256": "c13cea8f3389db4145f8a6cb88d1747242a48639d7c13e3bda7c1ebdc6eebb2f"
+  }
 }

@@ -1,4 +1,4 @@
-name: Publish Windows and Apple Silicon preview
+name: Publish Windows, macOS and Ubuntu preview
 on:
   push:
     tags: ['v*']
@@ -70,8 +70,47 @@ jobs:
           path: |
             dist-macos/*.dmg
             dist-macos/*.zip
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - name: Install build and UI dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libgbm1 libasound2t64 zstd espeak-ng
+      - name: Install pinned application dependencies
+        working-directory: macos
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          node node_modules/electron/install.js
+      - name: Test shared application and actual Linux runtime
+        run: |
+          cd macos && pnpm test && cd ..
+          node scripts/test-linux-runtime.cjs
+      - name: Build Ubuntu package
+        working-directory: macos
+        run: pnpm build:linux
+      - name: Install and test packaged application
+        run: |
+          sudo apt-get install -y ./dist-linux/*.deb
+          test "$(dpkg-deb -f dist-linux/*.deb Architecture)" = amd64
+          MUSE_DESK_SMOKE_OUTPUT="$PWD/.build/ubuntu-smoke" xvfb-run -a /opt/Muse\ Desk/muse-desk --smoke-test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-release
+          path: dist-linux/*.deb
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ubuntu-ui-checks
+          path: .build/ubuntu-smoke
   publish:
-    needs: [windows, macos, privacy]
+    needs: [windows, macos, ubuntu, privacy]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -85,10 +124,14 @@ jobs:
         with:
           name: macos-release
           path: packages
-      - name: Publish both platforms together
+      - uses: actions/download-artifact@v4
+        with:
+          name: ubuntu-release
+          path: packages
+      - name: Publish all platforms together
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd packages
-          sha256sum *.exe *.zip *.dmg > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" ./* --latest --title "Muse Desk $GITHUB_REF_NAME · Windows x64 + macOS Apple Silicon (Preview)" --notes-file ../docs/RELEASE-NOTES.md
+          sha256sum *.exe *.zip *.dmg *.deb > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" ./* --latest --title "Muse Desk $GITHUB_REF_NAME · Windows + macOS + Ubuntu (Preview)" --notes-file ../docs/RELEASE-NOTES.md

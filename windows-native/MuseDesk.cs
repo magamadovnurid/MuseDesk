@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.6.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.6.0")]
+[assembly: System.Reflection.AssemblyVersion("1.25.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.25.0.0")]
 
 namespace MuseDeskNative
 {

@@ -31,3 +31,4 @@ chats.json*
 attachments/
 *.gguf
 *.safetensors
+/dist-linux/

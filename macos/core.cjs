@@ -3,7 +3,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const GiB=1024**3;
-function profileFor({platform,arch,major,ramBytes,freeBytes}) {
+function profileFor(h) {
+  if(h.platform==='linux')return require('./linux-platform.cjs').assessLinux(h).profile;
+  const {platform,arch,major,ramBytes,freeBytes}=h;
   if(platform!=='darwin'||arch!=='arm64')return 'unsupported';
   if(!Number.isSafeInteger(major)||major<=0||!Number.isSafeInteger(ramBytes)||ramBytes<=0||!Number.isSafeInteger(freeBytes)||freeBytes<0)return 'unverified';
   if(major<14)return 'unsupported';
@@ -11,6 +13,7 @@ function profileFor({platform,arch,major,ramBytes,freeBytes}) {
   return ramBytes>=64*GiB?'glimmer-q4-f16':'glimmer-q4-q8';
 }
 function compatibilityFor(h,{loading=false}={}){
+  if(h.platform==='linux')return require('./linux-platform.cjs').assessLinux(h,{loading});
   const profile=profileFor({...h,freeBytes:loading?40*GiB:(h.budgetFreeBytes??h.freeBytes)});
   const reasons=[];
   if(profile==='unsupported')reasons.push('Для приложения нужны Apple Silicon, macOS 14+ и запуск без Rosetta.');

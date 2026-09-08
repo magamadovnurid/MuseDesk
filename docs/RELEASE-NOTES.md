@@ -1,4 +1,4 @@
-# Muse Desk 1.24.6 — Windows + Apple Silicon
+# Muse Desk 1.25.0 — Windows + Apple Silicon
 
 > **Preview — предварительная версия.** Пометка Latest означает самый новый доступный выпуск, а не завершённую аппаратную приёмку. Ограничения подписи и совместимости описаны ниже.
 
@@ -10,10 +10,10 @@
 
 | Компьютер | Файл |
 |---|---|
-| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.6-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
-| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.6-preview.1/MuseDesk-Windows-x64-App.zip) |
-| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.6-preview.1/MuseDesk-1.24.6-macOS-AppleSilicon.dmg)** |
-| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.6-preview.1/MuseDesk-1.24.6-macOS-AppleSilicon.zip) |
+| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
+| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-Windows-x64-App.zip) |
+| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-1.25.0-macOS-AppleSilicon.dmg)** |
+| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-1.25.0-macOS-AppleSilicon.zip) |
 
 Контрольные суммы всех пакетов — **SHA256SUMS.txt**. Исходники доступны стандартными архивами GitHub. Веса модели не включены в пакеты: они скачиваются мастером настройки.
 

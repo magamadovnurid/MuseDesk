@@ -12,6 +12,7 @@ const smoke=process.argv.includes('--smoke-test');
 if(smoke)app.disableHardwareAcceleration();
 app.setName('Muse Desk');
 if(smoke)app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'musedesk-ui-')));
+let speechProcess;
 let win,store,engine,installController,requestController,quitting=false;
 let status={state:'stopped',message:'Остановлено'},installStatus=null;
 const approvals=new Map();
@@ -66,7 +67,12 @@ async function send({id,text,attachments=[]}){
 async function action(name,value={}){
   switch(name){
     case 'load':return snapshot();
-    case 'hardware':return smoke?{profile:'glimmer-q4-q8',ramBytes:48*GiB,freeBytes:160*GiB,chip:'Apple M4 Pro',osVersion:'15.6',arch:'arm64'}:setup.probe(root());
+    case 'about':return {version:app.getVersion(),platform:process.platform};
+    case 'window-minimize':win.minimize();return;
+    case 'window-maximize':win.isMaximized()?win.unmaximize():win.maximize();return;
+    case 'window-close':win.close();return;
+    case 'speak':{if(process.platform!=='linux')return;const wasSpeaking=!!speechProcess;speechProcess?.kill();speechProcess=null;if(wasSpeaking)return;const text=store.chat(value.id).messages.filter(m=>m.role==='assistant').at(-1)?.content;if(text){const child=require('node:child_process').spawn('/usr/bin/espeak-ng',['-v','ru','--stdin'],{stdio:['pipe','ignore','ignore']});speechProcess=child;child.on('error',()=>{speechProcess=null;notify(Error('Озвучивание недоступно. Установите пакет espeak-ng.'));});child.on('close',()=>{if(speechProcess===child)speechProcess=null;});child.stdin.on('error',()=>{});child.stdin.end(text.slice(0,100000));}return;}
+    case 'hardware':return smoke?{profile:'glimmer-q4-q8',ramBytes:48*GiB,freeBytes:160*GiB,chip:process.platform==='linux'?'Тестовый процессор · NVIDIA 24 ГБ':'Apple M4 Pro',osVersion:process.platform==='linux'?'Ubuntu 24.04':'15.6',arch:process.arch,platform:process.platform}:setup.probe(root());
     case 'prepare':ensureIdle();await prepare();return snapshot();
     case 'models':return smoke?[store.state.settings.model]:engine.models();
     case 'install':{
@@ -120,13 +126,14 @@ app.whenReady().then(async()=>{
     {label:'Вид',submenu:[{label:'Боковая колонка',click:()=>emit('menu','sidebar')},{label:'Результаты и источники',click:()=>emit('menu','results')},{role:'togglefullscreen'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'}]},
     {label:'Окно',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]},
     {label:'Справка',submenu:[{label:'Установка Glimmer',click:()=>emit('menu','setup')},{label:'Журналы',click:()=>shell.showItemInFolder(root())},{label:'GitHub Releases',click:()=>shell.openExternal('https://github.com/magamadovnurid/MuseDesk/releases')}]}]));
-  win=new BrowserWindow({width:1340,height:900,minWidth:940,minHeight:650,title:'Muse Desk',backgroundColor:'#f5f5f5',titleBarStyle:'hiddenInset',trafficLightPosition:{x:17,y:16},show:!smoke,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,backgroundThrottling:false,offscreen:smoke}});
+  win=new BrowserWindow({width:1340,height:900,minWidth:940,minHeight:650,title:'Muse Desk',backgroundColor:'#f5f5f5',...(process.platform==='linux'?{frame:false,autoHideMenuBar:true,icon:path.join(__dirname,'assets/icon.png')}:{titleBarStyle:'hiddenInset',trafficLightPosition:{x:17,y:16}}),show:!smoke,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,backgroundThrottling:false,offscreen:smoke}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.webContents.session.setPermissionRequestHandler((_w,_p,cb)=>cb(false));
   ipcMain.handle('muse:call',async(event,name,value)=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame)throw Error('Недопустимый источник');try{return {ok:true,value:await action(name,value)};}catch(error){return {ok:false,error:error.message};}});
-  await win.loadFile('index.html');
+  if(process.platform==='linux')win.setMenuBarVisibility(false);
+  await win.loadFile(path.join(__dirname,'index.html'));
   if(smoke){await require('./smoke.cjs').run(win,store,app);return;}
   if(store.recovered)emit('notice','История восстановлена из резервной копии.');
   if(setup.findEngine(root()))prepare().catch(notify);else emit('menu','setup');
 }).catch(error=>{console.error(error);app.exit(1);});
-app.on('before-quit',event=>{if(quitting||smoke)return;event.preventDefault();quitting=true;cancel();Promise.resolve(engine?.close()).finally(()=>app.quit());});
+app.on('before-quit',event=>{if(quitting||smoke)return;event.preventDefault();quitting=true;cancel();speechProcess?.kill();Promise.resolve(engine?.close()).finally(()=>app.quit());});
 app.on('window-all-closed',()=>app.quit());

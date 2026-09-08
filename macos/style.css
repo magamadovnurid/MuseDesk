@@ -34,3 +34,5 @@ main{background:var(--surface);border-radius:20px 0 0 0;flex:1;min-width:0;overf
 
 #topic-nav button[aria-current=true]:before{width:9px;background:#909090}
 #topic-nav button:hover:before,#topic-nav button:focus-visible:before{width:14px;background:#626262}
+
+.linux #titlebar{padding-left:12px;padding-right:0}.window-controls{display:flex;align-self:stretch;margin-left:10px;-webkit-app-region:no-drag}.window-controls button{width:44px;border-radius:0;font-size:18px;color:#777;padding:0}.window-controls button:hover{background:#e7e7e7}.window-controls button:last-child:hover{background:#df4545;color:white}
