@@ -357,14 +357,13 @@ namespace MuseDeskNative
             root.Dispose();
         }
 
-        private RichTextBox MakeReadableText(string text, int width, Font font, Color back, Color fore, int maxHeight)
+        private RichTextBox MakeReadableText(string text, int width, Font font, Color back, Color fore)
         {
-            int measured = MeasureTextHeight(text,width-18,font,maxHeight)+12;
-            RichTextBox box = new RichTextBox
+            RichTextBox box = new TranscriptTextBox
             {
                 Text = text, ReadOnly = true, BorderStyle = BorderStyle.None, Font = font,
                 BackColor = back, ForeColor = fore, WordWrap = true, DetectUrls = true,
-                ScrollBars = measured >= maxHeight ? RichTextBoxScrollBars.Vertical : RichTextBoxScrollBars.None, Width = width, Height = Math.Min(maxHeight,Math.Max(44,measured+12)),
+                ScrollBars = RichTextBoxScrollBars.None, Width = width, Height = 44,
                 TabStop = false, HideSelection = false
             };
             box.LinkClicked += delegate(object sender,LinkClickedEventArgs e)
@@ -375,7 +374,6 @@ namespace MuseDeskNative
             };
             box.MouseWheel+=delegate(object sender,MouseEventArgs e)
             {
-                if(box.ScrollBars==RichTextBoxScrollBars.Vertical)return;
                 Control parent=box.Parent;while(parent!=null && !(parent is ModernFlowPanel))parent=parent.Parent;
                 if(parent!=null){((ModernFlowPanel)parent).ScrollWheel(e.Delta);HandledMouseEventArgs handled=e as HandledMouseEventArgs;if(handled!=null)handled.Handled=true;}
             };
@@ -410,8 +408,8 @@ namespace MuseDeskNative
             RoundedComposerPanel frame=new RoundedComposerPanel{Width=width,Radius=12,BackColor=background,BorderColor=Line};
             frame.Controls.Add(new Label{Text=title,AutoEllipsis=true,Font=new Font("Segoe UI",9F),ForeColor=Muted,Location=new Point(14,15),Size=new Size(Math.Max(48,width-164),22),BackColor=background});
             RoundedButton copy=MakeCopyButton(()=>text,title=="Рассуждение"?"Скопировать рассуждение":"Скопировать блок: "+title,background);copy.Location=new Point(width-copy.Width-10,7);frame.Controls.Add(copy);
-            RichTextBox body=MakeReadableText(text,width-28,new Font(code?"Consolas":"Segoe UI",code?10F:10.5F),background,code?TextInk:Muted,code?800:420);
-            body.AccessibleName=title;body.Location=new Point(14,46);frame.Controls.Add(body);FitRichText(body,code?800:420);
+            RichTextBox body=MakeReadableText(text,width-28,new Font(code?"Consolas":"Segoe UI",code?10F:10.5F),background,code?TextInk:Muted);
+            body.AccessibleName=title;body.Location=new Point(14,46);frame.Controls.Add(body);FitRichText(body);
             frame.Height=body.Bottom+14;return frame;
         }
 
@@ -431,8 +429,8 @@ namespace MuseDeskNative
         private int AddAnswerProse(Control card,string text,int width,int y)
         {
             if(string.IsNullOrWhiteSpace(text))return y;
-            RichTextBox answer=MakeReadableText(text.Trim('\r','\n'),width,new Font("Segoe UI",10.5F),Surface,TextInk,32760);
-            answer.AccessibleName="Ответ Muse";answer.Location=new Point(18,y);ApplyMarkdownStyles(answer);card.Controls.Add(answer);FitRichText(answer,32760);
+            RichTextBox answer=MakeReadableText(text.Trim('\r','\n'),width,new Font("Segoe UI",10.5F),Surface,TextInk);
+            answer.AccessibleName="Ответ Muse";answer.Location=new Point(18,y);ApplyMarkdownStyles(answer);card.Controls.Add(answer);FitRichText(answer);
             return answer.Bottom+12;
         }
 

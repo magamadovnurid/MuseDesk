@@ -1,19 +1,21 @@
-# Muse Desk 1.24.1 — Windows + Apple Silicon
+# Muse Desk 1.24.2 — Windows + Apple Silicon
 
 > **Preview — предварительная версия.** Пометка Latest означает самый новый доступный выпуск, а не завершённую аппаратную приёмку. Ограничения подписи и совместимости описаны ниже.
 
-Исправлено зацикливание Windows-клиента на простых вопросах: обычный ответ завершает запрос, повторяющиеся действия сменяются одной попыткой дать итог без инструментов. Технические журналы больше не превращаются в навязчивые окна уточнений.
+В центральной области диалога теперь одна общая прокрутка. Длинный ответ, итог, код, раскрытое рассуждение и журнал действий разворачиваются в ленте; колесо мыши над текстом прокручивает диалог.
 
-Настоящее уточнение ограничено коротким вопросом; слишком длинная формулировка возвращается модели для сокращения, а уже отвеченный вопрос не показывается повторно. Разрешения на действия остаются отдельным механизмом. В Windows и macOS уточнены инструкции: совет не требует чтения соседних папок или создания файлов.
+На правом краю появились небольшие метки вопросов. При наведении метка расширяется, рядом с курсором появляется тема и короткий фрагмент ответа. Нажатие возвращает к выбранному вопросу. В Windows доступны Alt+↑ / Alt+↓ при фокусе на полосе; в macOS метки доступны с клавиатуры через Tab и Enter. Настройка уменьшения анимации учитывается на обеих платформах.
+
+Сохранены исправления 1.24.1: обычный ответ завершает запрос, повторяющиеся действия сменяются одной попыткой дать итог без инструментов, а технические журналы не превращаются в окна уточнений.
 
 ## Выберите файл
 
 | Компьютер | Файл |
 |---|---|
-| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.1-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
-| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.1-preview.1/MuseDesk-Windows-x64-App.zip) |
-| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.1-preview.1/MuseDesk-1.24.1-macOS-AppleSilicon.dmg)** |
-| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.1-preview.1/MuseDesk-1.24.1-macOS-AppleSilicon.zip) |
+| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.2-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
+| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.2-preview.1/MuseDesk-Windows-x64-App.zip) |
+| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.2-preview.1/MuseDesk-1.24.2-macOS-AppleSilicon.dmg)** |
+| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.2-preview.1/MuseDesk-1.24.2-macOS-AppleSilicon.zip) |
 
 Контрольные суммы всех пакетов — **SHA256SUMS.txt**. Исходники доступны стандартными архивами GitHub. Веса модели не включены в пакеты: они скачиваются мастером настройки.
 

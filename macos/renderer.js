@@ -35,7 +35,43 @@ function renderTree(){const tree=$('tree');tree.replaceChildren();const query=$(
 }
 function inline(text,parent){const pattern=/(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g;let start=0;for(const match of text.matchAll(pattern)){parent.append(document.createTextNode(text.slice(start,match.index)));const token=match[0];if(token[0]==='`')parent.append(make('code','',token.slice(1,-1)));else if(token.startsWith('**'))parent.append(make('strong','',token.slice(2,-2)));else{const parsed=/^\[([^\]]+)\]\((.+)\)$/.exec(token);const a=make('a','',parsed[1]);a.href=parsed[2];a.onclick=e=>{e.preventDefault();api('open-link',{url:parsed[2]}).catch(showError);};parent.append(a);}start=match.index+token.length;}parent.append(document.createTextNode(text.slice(start)));}
 function markdown(text){const block=make('div','message-content');const parts=String(text||'').split(/```[^\n]*\n([\s\S]*?)```/g);parts.forEach((part,index)=>{if(index%2){const pre=make('pre','',part);const copy=button('Копировать код',()=>api('copy',{text:part}));copy.className='secondary';pre.append(copy);block.append(pre);}else{const lines=part.split('\n');lines.forEach((line,i)=>{if(/^#{1,3} /.test(line)){const h=make('h3');inline(line.replace(/^#{1,3} /,''),h);block.append(h);}else inline(line,block);if(i<lines.length-1)block.append(document.createTextNode('\n'));});}});return block;}
-function renderMessages(){const host=$('messages'),oldTop=host.scrollTop;host.replaceChildren();const chat=active();if(!chat?.messages.length){const empty=make('div','empty');empty.append(icon('brand'),make('h1','','С чего начнём?'),make('p','',data.status.state==='ready'?'Опишите задачу — Muse поможет.':'Подготовьте модель и дождитесь статуса «Готово».'));host.append(empty);return;}
+function topicExcerpt(text,limit){const plain=String(text||'').replace(/[`#*_]/g,'').replace(/\s+/g,' ').trim();const chars=Array.from(plain);return chars.length>limit?chars.slice(0,limit-1).join('')+'…':plain;}
+const topicPreview=$('topic-preview');
+const topicObserver=new ResizeObserver(()=>layoutTopics());
+function hideTopicPreview(){topicPreview.classList.add('hidden');for(const b of $('topic-nav').children)b.removeAttribute('aria-describedby');}
+function layoutTopics(){const host=$('messages');$('topic-nav').hidden=host.scrollHeight<=host.clientHeight;const top=host.getBoundingClientRect().top;for(const mark of $('topic-nav').children){const row=host.children[Number(mark.dataset.message)];if(row)mark.style.top=(7+(row.getBoundingClientRect().top-top+host.scrollTop)*Math.max(1,host.clientHeight-14)/Math.max(1,host.scrollHeight))+'px';}}
+function showTopicPreview(mark,title,preview,x,y){topicPreview.querySelector('strong').textContent=title;topicPreview.querySelector('p').textContent=preview||'Перейти к этому вопросу';topicPreview.classList.remove('hidden');mark.setAttribute('aria-describedby','topic-preview');topicPreview.style.left=Math.max(8,Math.min(innerWidth-topicPreview.offsetWidth-8,x-topicPreview.offsetWidth-16))+'px';topicPreview.style.top=Math.max(8,Math.min(innerHeight-topicPreview.offsetHeight-8,y+14))+'px';}
+let topicChatId=null;
+function renderTopics(messages){
+  const host=$('messages'),nav=$('topic-nav');
+  const questions=messages.map((message,index)=>({message,index})).filter(item=>item.message.role==='user');
+  const same=topicChatId===data.activeId&&questions.length===nav.children.length&&questions.every((q,i)=>nav.children[i].dataset.message===String(q.index)&&nav.children[i].dataset.title===(topicExcerpt(q.message.content,85)||'Вопрос с вложением'));
+  topicObserver.disconnect();
+  if(!same){hideTopicPreview();nav.replaceChildren();}
+  topicChatId=data.activeId;
+  questions.forEach(({message,index},position)=>{
+    const title=topicExcerpt(message.content,85)||'Вопрос с вложением';
+    const following=messages.slice(index+1),end=following.findIndex(m=>m.role==='user');
+    const answer=following.slice(0,end<0?following.length:end).filter(m=>m.role==='assistant').at(-1);
+    const excerpt=topicExcerpt(answer?.content,140)||(answer?'Ответ формируется…':'Ожидание ответа');
+    if(same){nav.children[position].dataset.preview=excerpt;return;}
+    const mark=button('',()=>{
+      hideTopicPreview();followTail=false;
+      const row=host.children[index];
+      host.scrollTo({top:host.scrollTop+row.getBoundingClientRect().top-host.getBoundingClientRect().top-12,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+    });
+    mark.dataset.message=String(index);mark.dataset.title=title;mark.dataset.preview=excerpt;
+    mark.setAttribute('aria-label','Перейти к теме: '+title);
+    mark.addEventListener('pointermove',e=>showTopicPreview(mark,title,mark.dataset.preview,e.clientX,e.clientY));
+    mark.addEventListener('pointerleave',hideTopicPreview);
+    mark.addEventListener('focus',()=>{const r=mark.getBoundingClientRect();showTopicPreview(mark,title,mark.dataset.preview,r.left,r.top);});
+    mark.addEventListener('blur',hideTopicPreview);
+    mark.addEventListener('keydown',e=>{if(e.key==='Escape')hideTopicPreview();});
+    nav.append(mark);
+  });
+  topicObserver.observe(host);for(const row of host.children)topicObserver.observe(row);layoutTopics();
+}
+function renderMessages(){const host=$('messages'),oldTop=host.scrollTop;host.replaceChildren();const chat=active();if(!chat?.messages.length){renderTopics([]);const empty=make('div','empty');empty.append(icon('brand'),make('h1','','С чего начнём?'),make('p','',data.status.state==='ready'?'Опишите задачу — Muse поможет.':'Подготовьте модель и дождитесь статуса «Готово».'));host.append(empty);return;}
   for(const message of chat.messages){const article=make('article','message-'+message.role);
     if(message.role==='user'){article.append(make('div','bubble',message.content));for(const image of message.images||[]){const img=make('img','attached-image');img.src='data:image/jpeg;base64,'+image;img.alt='Вложение';article.append(img);}}
     else{if(message.thinking){const details=make('details','thinking');details.append(make('summary','','Рассуждение'),make('p','',message.thinking));article.append(details);}article.append(markdown(message.content));
@@ -45,6 +81,7 @@ function renderMessages(){const host=$('messages'),oldTop=host.scrollTop;host.re
     const copy=button('',()=>api('copy',{text:message.content}),'icon');copy.append(icon('copy'));copy.title='Копировать';copy.setAttribute('aria-label','Копировать сообщение');meta.append(copy);article.append(meta);host.append(article);
   }
   if(followTail)host.scrollTop=host.scrollHeight;else host.scrollTop=oldTop;
+  renderTopics(chat.messages);
 }
 function renderResults(){const chat=active(),results=$('result-list'),sources=$('sources');results.replaceChildren();sources.replaceChildren();const files=[...new Set((chat?.messages||[]).flatMap(m=>(m.actions||[]).map(a=>a.result).filter(Boolean)))];if(!files.length)results.textContent='Созданные файлы появятся здесь.';else for(const file of files)results.append(make('p','',file));const urls=[...new Set((chat?.messages||[]).flatMap(m=>(m.content||'').match(/https?:\/\/[^\s<>"\])]+/g)||[]))];if(!urls.length)sources.textContent='Ссылки из диалога появятся здесь.';else for(const url of urls.slice(0,100))sources.append(button(url,()=>api('open-link',{url})));}
 function renderStatus(){const state=data.status.state;$('status').textContent=state==='ready'?'Готово':state==='loading'?'Ожидание':'Остановлено';$('ring').className='ring '+state;$('model-detail').textContent=state==='ready'?modelName(data.settings.model)+' · в памяти GPU':data.status.message||'Muse Glimmer · на устройстве';$('model-status').title=data.status.message||'';controls();}

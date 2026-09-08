@@ -161,12 +161,12 @@ namespace MuseDeskNative
             RoundedComposerPanel frame=new RoundedComposerPanel{Name="TaskSummary",AccessibleName="Итог работы",Width=width,Radius=14,BackColor=Surface,BorderColor=Line};
             frame.Controls.Add(new Label{Text="Итог",Font=new Font("Segoe UI Semibold",11F),ForeColor=TextInk,Location=new Point(16,15),AutoSize=true});
             RoundedButton copy=MakeCopyButton(()=>SummaryCopyText(message),"Скопировать итог и изменения",Surface);copy.Location=new Point(width-copy.Width-10,8);frame.Controls.Add(copy);
-            RichTextBox summary=MakeReadableText(message.finalSummary??"",width-32,new Font("Segoe UI",10.5F),Surface,TextInk,1600);
-            summary.AccessibleName="Итоговый ответ";summary.Location=new Point(16,48);ApplyMarkdownStyles(summary);frame.Controls.Add(summary);FitRichText(summary,1600);int y=summary.Bottom+12;
+            RichTextBox summary=MakeReadableText(message.finalSummary??"",width-32,new Font("Segoe UI",10.5F),Surface,TextInk);
+            summary.AccessibleName="Итоговый ответ";summary.Location=new Point(16,48);ApplyMarkdownStyles(summary);frame.Controls.Add(summary);FitRichText(summary);int y=summary.Bottom+12;
             List<FileChangeSummary> files=message.fileChanges??new List<FileChangeSummary>();
             Label heading=new Label{Text=files.Count==0?"Изменений файлов не зафиксировано":"Изменённые файлы · "+files.Count,Font=new Font("Segoe UI",9F),ForeColor=Muted,AutoSize=true,Location=new Point(16,y)};frame.Controls.Add(heading);y+=30;
-            ModernFlowPanel list=new ModernFlowPanel{Location=new Point(12,y),Width=width-24,Height=Math.Min(384,files.Count*64),BackColor=Surface,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false};
-            if(files.Count>0){frame.Controls.Add(list);InstallScrollBar(list,frame);}
+            FlowLayoutPanel list=new FlowLayoutPanel{Location=new Point(12,y),Width=width-24,Height=files.Count*64,BackColor=Surface,AutoScroll=false,FlowDirection=FlowDirection.TopDown,WrapContents=false};
+            if(files.Count>0)frame.Controls.Add(list);
             foreach(FileChangeSummary file in files)
             {
                 Panel row=new Panel{Size=new Size(list.Width-12,58),BackColor=Color.FromArgb(247,247,247),Margin=new Padding(0,0,0,6)};

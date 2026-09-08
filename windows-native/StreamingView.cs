@@ -27,7 +27,7 @@ namespace MuseDeskNative
         {
             Panel row=new Panel {Width=width,Height=62,BackColor=Canvas,Margin=new Padding(0,0,0,20)};
             Label status=new Label {Text="Muse отвечает…",Font=new Font("Segoe UI",9F),ForeColor=Muted,Location=new Point(18,8),Size=new Size(width-36,22)};
-            RichTextBox body=MakeReadableText("",width-36,new Font("Segoe UI",10.5F),Surface,TextInk,32760);
+            RichTextBox body=MakeReadableText("",width-36,new Font("Segoe UI",10.5F),Surface,TextInk);
             body.AccessibleName="Ответ Muse";body.Location=new Point(18,36);body.Height=24;body.Visible=false;
             RoundedButton copy=MakeCopyButton(()=>message.content,"Скопировать весь ответ",Surface);copy.Location=new Point(14,body.Bottom+8);copy.Visible=!string.IsNullOrEmpty(message.content);
             StreamView view=new StreamView {Message=message,Row=row,Body=body,Status=status,Copy=copy};row.Tag=view;row.Controls.AddRange(new Control[]{status,body,copy});
@@ -97,9 +97,7 @@ namespace MuseDeskNative
                 string delta=target.Substring(view.Displayed.Length,end-view.Displayed.Length);
                 int selection=view.Body.SelectionStart,length=view.Body.SelectionLength;
                 view.Body.AppendText(delta);view.Displayed=target.Substring(0,end);
-                int lines=Math.Max(1,NativeMethods.SendMessage(view.Body.Handle,0x00BA,IntPtr.Zero,null).ToInt32());
-                view.Body.Height=Math.Min(32760,lines*view.Body.Font.Height+12);
-                view.Body.ScrollBars=lines*view.Body.Font.Height+12>32760?RichTextBoxScrollBars.Vertical:RichTextBoxScrollBars.None;
+                FitRichText(view.Body);
                 view.Body.Visible=true;view.Body.Select(Math.Min(selection,view.Body.TextLength),Math.Min(length,Math.Max(0,view.Body.TextLength-selection)));
                 view.Copy.Visible=target.Length>0;view.Copy.Location=new Point(14,view.Body.Bottom+8);LayoutStreamRow(view);
             }

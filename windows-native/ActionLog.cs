@@ -173,8 +173,8 @@ namespace MuseDeskNative
         private int AddActionDetail(Control parent,string title,string text,int width,int y,bool monospace)
         {
             Label label=new Label{Text=title,Font=new Font("Segoe UI",8.5F),ForeColor=Muted,AutoSize=true,Location=new Point(32,y+4)};parent.Controls.Add(label);
-            RichTextBox body=MakeReadableText(text,width-52,new Font(monospace?"Consolas":"Segoe UI",9.5F),Color.FromArgb(247,247,247),TextInk,320);
-            body.DetectUrls=false;body.AccessibleName="Действие: "+title;body.Location=new Point(32,y+26);body.TabStop=true;parent.Controls.Add(body);FitRichText(body,320);return body.Bottom+12;
+            RichTextBox body=MakeReadableText(text,width-52,new Font(monospace?"Consolas":"Segoe UI",9.5F),Color.FromArgb(247,247,247),TextInk);
+            body.DetectUrls=false;body.AccessibleName="Действие: "+title;body.Location=new Point(32,y+26);body.TabStop=true;parent.Controls.Add(body);FitRichText(body);return body.Bottom+12;
         }
     }
 }

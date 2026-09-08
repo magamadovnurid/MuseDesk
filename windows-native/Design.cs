@@ -520,14 +520,9 @@ namespace MuseDeskNative
             pendingMenuDisposal.Clear();
         }
 
-        private static void FitRichText(RichTextBox box,int maximum)
+        private static void FitRichText(RichTextBox box)
         {
-            IntPtr handle=box.Handle;
-            box.Select(0,0);
-            box.ScrollToCaret();
-            int height=box.GetPositionFromCharIndex(box.TextLength).Y+box.Font.Height+12;
-            box.Height=Math.Max(box.Font.Height+12,Math.Min(maximum,height));
-            box.ScrollBars=height>maximum?RichTextBoxScrollBars.Vertical:RichTextBoxScrollBars.None;
+            ((TranscriptTextBox)box).FitToText();
         }
     }
 }

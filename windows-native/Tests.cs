@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -180,6 +180,7 @@ namespace MuseDeskNative
             if(Environment.GetEnvironmentVariable("MUSE_DESK_AGENT_LIVE")=="1")CheckLiveAgentWorkflow();
             Check(resultsHost.Visible && resultsCard.Visible && resultsCard.Controls.Count>0,"Results and sources panel is visible by default");
             CheckScrollBehavior();
+            CheckConversationNavigation(output);
             Check(center.Width>950 && sidebar.Width==254,"Native sidebar and chat layout");
             Check(input.Height>=24 && sendButton.Width==42,"Composer has editable area and send button");
             Check(sidebar.BackColor.GetBrightness()>0.9F && center.BackColor==Color.White && sendButton.BackColor.R==sendButton.BackColor.G,"Codex-style neutral palette and light workspace");
@@ -191,10 +192,10 @@ namespace MuseDeskNative
             composerThinkingButton.PerformClick();
             Check(state.settings.thinkingEnabled!=previousThinking && composerThinkingButton.Text.Contains(previousThinking?"выкл.":"вкл."),"Composer reasoning control updates the real setting");
             composerThinkingButton.PerformClick();
-            using(RichTextBox longAnswer=MakeReadableText(string.Join("\n",Enumerable.Repeat("Длинный ответ должен оставаться доступным для чтения и прокрутки.",300).ToArray()),600,new Font("Segoe UI",11F),Color.White,Color.Black,1600))
+            using(RichTextBox longAnswer=MakeReadableText(string.Join("\n",Enumerable.Repeat("Длинный ответ должен оставаться доступным для чтения и прокрутки.",300).ToArray()),600,new Font("Segoe UI",11F),Color.White,Color.Black))
             {
-                FitRichText(longAnswer,1600);
-                Check(longAnswer.ScrollBars==RichTextBoxScrollBars.Vertical,"Long answers retain scrolling after fitting the new message cards");
+                FitRichText(longAnswer);
+                Check(longAnswer.ScrollBars==RichTextBoxScrollBars.None && longAnswer.Height>1600,"Long transcript text expands into the shared scroll area");
             }
             rightRail.Visible=true;PerformLayout();
             Check(center.Width>=790 && input.Width>=700,"Capabilities panel leaves room for the chat composer");
@@ -984,6 +985,47 @@ namespace MuseDeskNative
             }
         }
 
+        private void CheckConversationNavigation(string output)
+        {
+            ChatSession previous=activeChat;Size oldSize=Size;
+            ChatSession fixture=new ChatSession{id="conversation-navigation-review",title="Темы диалога"};
+            string longText=string.Join("\n",Enumerable.Range(1,240).Select(i=>"Строка "+i+": подробный ответ сохраняется в общей области диалога.").ToArray());
+            fixture.messages.Add(new ChatMessage{role="user",content="Как организовать библиотеку проекта?"});
+            fixture.messages.Add(new ChatMessage{role="assistant",content="Разделите библиотеку по темам и добавьте короткое описание каждой папки.\n"+longText,finalSummary=longText,thinking=longText});
+            fixture.messages.Add(new ChatMessage{role="user",content="Как быстро найти нужный материал?"});
+            fixture.messages.Add(new ChatMessage{role="assistant",content="Используйте поиск и метки тем.\n```text\n"+longText+"\n```"});
+            fixture.messages.Add(new ChatMessage{role="user",content="Что добавить на главную страницу?"});
+            fixture.messages.Add(new ChatMessage{role="assistant",content="Короткое описание проекта, последние материалы и ссылки на основные разделы."});
+            state.chats.Add(fixture);activeChat=fixture;state.activeChatId=fixture.id;
+            try
+            {
+                SetReviewSize(new Size(1340,900));RenderConversation();Application.DoEvents();
+                ModernFlowPanel scroll=(ModernFlowPanel)messageList;scroll.UserScrollTo(0);
+                Check(Descendants(messageList).OfType<RichTextBox>().All(b=>b.ScrollBars==RichTextBoxScrollBars.None),"Prose, code and final summary share one conversation scrollbar");
+                RichTextBox summary=Descendants(messageList).OfType<RichTextBox>().Single(b=>b.AccessibleName=="Итоговый ответ");
+                Check(summary.Height>1600 && summary.GetPositionFromCharIndex(summary.TextLength).Y+summary.Font.Height<=summary.Height,"Long final summary has no height cap or clipped final line");
+                Check(Descendants(messageList).OfType<ThinScrollBar>().Count()==0,"Replies contain no nested scrollbars");
+                var flags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;
+                typeof(Control).GetMethod("OnMouseWheel",flags).Invoke(summary,new object[]{new HandledMouseEventArgs(MouseButtons.None,0,10,10,-120)});
+                Check(-scroll.AutoScrollPosition.Y>0 && !followResponseTail,"Wheel over response text scrolls the conversation and releases automatic following");
+                Check(conversationScroll.TopicCount==3,"Each user question has a conversation topic marker");
+                Point marker=new Point(10,conversationScroll.TopicY(1));
+                typeof(ConversationScrollBar).GetMethod("OnMouseMove",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.None,0,marker.X,marker.Y,0)});
+                Check(conversationScroll.SelectedTopic==1 && conversationScroll.PreviewTitle.Contains("найти") && conversationScroll.PreviewText.Contains("поиск"),"Hover preview shows the question topic and its response excerpt");
+                using(Bitmap barImage=new Bitmap(conversationScroll.Width,conversationScroll.Height))
+                {conversationScroll.DrawToBitmap(barImage,conversationScroll.ClientRectangle);barImage.Save(Path.Combine(output,"conversation-scroll-detail.png"));}
+                DesignPreview.Capture(this,Path.Combine(output,"conversation-topics.png"));
+                typeof(ConversationScrollBar).GetMethod("OnMouseDown",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.Left,1,marker.X,marker.Y,0)});
+                Check(Math.Abs(renderedRows[fixture.messages[2]].Item2.Top-12)<=1,"Clicking a topic positions its question at the top of the conversation");
+                typeof(ConversationScrollBar).GetMethod("OnKeyDown",flags).Invoke(conversationScroll,new object[]{new KeyEventArgs(Keys.Alt|Keys.Up)});
+                Check(Math.Abs(renderedRows[fixture.messages[0]].Item2.Top-12)<=1,"Alt+Up navigates to the preceding topic");
+                scroll.UserScrollTo(scroll.MaximumOffset);
+                Check(messageList.Controls[messageList.Controls.Count-1].Bottom<=messageList.ClientSize.Height,"Shared scrollbar reaches the last response");
+                DesignPreview.Capture(this,Path.Combine(output,"conversation-one-scroll.png"));
+            }
+            finally{state.chats.Remove(fixture);activeChat=previous;state.activeChatId=previous.id;SetReviewSize(oldSize);RenderConversation();}
+        }
+
         private void CheckStreamingBehavior(string output)
         {
             ChatSession previous=activeChat;
@@ -1000,7 +1042,8 @@ namespace MuseDeskNative
                 RenderConversation();Check(object.ReferenceEquals(row,messageList.Controls[0]),"Incoming stream updates retain the same response control");
                 for(int i=0;i<150;i++)AnimateStreamFrame();
                 Check(view.Displayed==reply.content,"Smooth presentation loses no response characters");
-                Check(center.Controls.OfType<ThinScrollBar>().Any(b=>b.Visible && b.Width==10),"Conversation scrollbar remains visible during a long streamed answer");
+                Check(center.Controls.OfType<ConversationScrollBar>().Any(b=>b.Visible),"Conversation scrollbar remains visible during a long streamed answer");
+                Check(view.Body.ScrollBars==RichTextBoxScrollBars.None && view.Body.Height>600,"Streaming response grows without an inner scrollbar");
                 ((ModernFlowPanel)messageList).UserScrollTo(0);reply.content+="\nНовая строка во время чтения истории.";
                 for(int i=0;i<40;i++)AnimateStreamFrame();
                 Check(!followResponseTail && messageList.AutoScrollPosition.Y==0,"Streaming does not pull a reader back down after scrolling up");
@@ -1097,7 +1140,7 @@ namespace MuseDeskNative
                 foreach(var column in columns)
                 {
                     var bar=column.Parent.Controls.OfType<ThinScrollBar>().Single(b=>b.ScrollOwner==column);
-                    Check(bar.Visible && bar.Width==10 && bar.Right==column.Right && bar.Height==column.Height,"Overflow column has an aligned thin scrollbar: "+Array.IndexOf(columns,column)+", form="+Size+", center="+center.ClientSize+", visible="+column.Visible+", offset="+column.MaximumOffset+", bar="+bar.Bounds+", column="+column.Bounds);
+                    Check(bar.Visible && bar.Thumb.Width<=7 && bar.Right==column.Right && bar.Height==column.Height,"Overflow column has an aligned thin scrollbar: "+Array.IndexOf(columns,column)+", form="+Size+", center="+center.ClientSize+", visible="+column.Visible+", offset="+column.MaximumOffset+", bar="+bar.Bounds+", column="+column.Bounds);
                     column.UserScrollTo(column.MaximumOffset);Check(-column.AutoScrollPosition.Y==column.MaximumOffset,"Each column reaches its final item: "+Array.IndexOf(columns,column));
                     Check(bar.Thumb.Bottom<=bar.Height,"Scrollbar thumb remains inside its track");
                     column.UserScrollTo(0);

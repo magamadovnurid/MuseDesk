@@ -27,7 +27,7 @@ namespace MuseDeskNative
         }
         private static void PaintText(Form form,Control parent,Graphics target,Rectangle inheritedClip)
         {
-            foreach(Control control in parent.Controls)
+            foreach(Control control in parent.Controls.Cast<Control>().Reverse())
             {
                 if(!control.Visible)continue;
                 Point location=control.PointToScreen(Point.Empty);location.Offset(-form.Left,-form.Top);

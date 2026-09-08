@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.24.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.24.2.0")]
 
 namespace MuseDeskNative
 {
@@ -361,7 +361,7 @@ namespace MuseDeskNative
             messageList.BringToFront();
             ((ModernFlowPanel)messageList).UserScrolled+=delegate{followResponseTail=-messageList.AutoScrollPosition.Y+messageList.ClientSize.Height>=messageList.DisplayRectangle.Height-12;if(!followResponseTail)scrollAnimationTarget=-1;};
             BuildResultsPanel();
-            InstallScrollBar(messageList,center);
+            conversationScroll=new ConversationScrollBar((ModernFlowPanel)messageList);center.Controls.Add(conversationScroll);
             center.Resize += delegate { if (rightRail.Visible && ClientSize.Width < 1140) { rightRail.Visible = false; detailsButton.BackColor = Surface; } LayoutWorkspace(); if (messageList != null) RenderConversation(); };
             KeyDown += OnGlobalKeyDown;
             BuildApplicationMenu();
@@ -1593,6 +1593,7 @@ namespace MuseDeskNative
             messageList.ResumeLayout(true);
             messageList.AutoScrollMinSize=new Size(0,messageList.Controls.Count==0?0:messageList.Controls.Cast<Control>().Max(c=>c.Bottom-messageList.AutoScrollPosition.Y+c.Margin.Bottom)+messageList.Padding.Bottom);
             messageList.PerformLayout();
+            RefreshConversationTopics(chat);
             // The final card is taller than the streaming row (speed, actions, timestamp).
             // A leftover streaming target must not pull the completed footer back down.
             if(generationCancellation==null)scrollAnimationTarget=-1;
@@ -1665,11 +1666,11 @@ namespace MuseDeskNative
                 }
                 else
                 {
-                RichTextBox answer = MakeReadableText(message.content,cardWidth-36,new Font("Segoe UI",10.5F),card.BackColor,Color.White,1600);
+                RichTextBox answer = MakeReadableText(message.content,cardWidth-36,new Font("Segoe UI",10.5F),card.BackColor,Color.White);
                 answer.AccessibleName = user ? "Сообщение пользователя" : "Ответ Muse";
                 answer.Location = new Point(18,y);
                 if (!user) ApplyMarkdownStyles(answer);
-                card.Controls.Add(answer); FitRichText(answer,1600);
+                card.Controls.Add(answer); FitRichText(answer);
                 if(user)answer.Height=Math.Max(answer.Font.Height+2,answer.Height-10);
                 y += answer.Height+12;
                 }

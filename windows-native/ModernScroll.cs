@@ -2,9 +2,27 @@ using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace MuseDeskNative
 {
+    // Rich Edit reports its full laid-out height as a 32-bit rectangle. Measuring
+    // the final character alone can leave a capped, independently scrolling box.
+    internal sealed class TranscriptTextBox : RichTextBox
+    {
+        [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam);
+        private int textHeight;
+        protected override void OnContentsResized(ContentsResizedEventArgs e){textHeight=e.NewRectangle.Height;base.OnContentsResized(e);}
+        internal void FitToText()
+        {
+            ScrollBars=RichTextBoxScrollBars.None;
+            SendMessage(Handle,0x441,IntPtr.Zero,IntPtr.Zero); // EM_REQUESTRESIZE
+            Height=Math.Max(Font.Height+12,textHeight+12);
+        }
+    }
+
     internal class ModernFlowPanel : FlowLayoutPanel
     {
         [DllImport("user32.dll")] private static extern bool ShowScrollBar(IntPtr window,int bar,bool show);
@@ -39,7 +57,7 @@ namespace MuseDeskNative
         }
     }
 
-    internal sealed class ThinScrollBar : Control
+    internal class ThinScrollBar : Control
     {
         private readonly ModernFlowPanel owner;
         private bool dragging,hover;
@@ -61,7 +79,7 @@ namespace MuseDeskNative
         protected override void OnParentChanged(EventArgs e){base.OnParentChanged(e);if(owner!=null)UpdateView(this,EventArgs.Empty);}
         protected override void OnMouseWheel(MouseEventArgs e)
         {base.OnMouseWheel(e);owner.ScrollWheel(e.Delta);var handled=e as HandledMouseEventArgs;if(handled!=null)handled.Handled=true;}
-        internal Rectangle Thumb
+        internal virtual Rectangle Thumb
         {
             get
             {
@@ -106,8 +124,143 @@ namespace MuseDeskNative
         }
     }
 
+    internal sealed class ConversationTopic
+    {
+        internal Control Row;
+        internal string Title;
+        internal Func<string> Preview;
+    }
+
+    internal sealed class ConversationScrollBar : ThinScrollBar
+    {
+        private readonly List<ConversationTopic> topics=new List<ConversationTopic>();
+        private readonly ToolTip preview=new ToolTip{OwnerDraw=true,UseAnimation=false,UseFading=false,ShowAlways=true};
+        private readonly Timer animation=new Timer{Interval=16};
+        private int selected=-1;
+        private float emphasis;
+        private bool thumbDragging;
+        private string previewTitle="",previewText="";
+        private Size previewSize=new Size(286,100);
+        internal int TopicCount {get{return topics.Count;}}
+        internal int SelectedTopic {get{return selected;}}
+        internal string PreviewTitle {get{return previewTitle;}}
+        internal string PreviewText {get{return previewText;}}
+        internal ConversationScrollBar(ModernFlowPanel owner):base(owner)
+        {
+            Width=28;AccessibleName="Прокрутка диалога и темы. Alt+стрелки — переход между вопросами";
+            preview.Popup+=delegate(object sender,PopupEventArgs e){e.ToolTipSize=previewSize;};
+            preview.Draw+=delegate(object sender,DrawToolTipEventArgs e)
+            {
+                e.Graphics.Clear(Color.White);e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using(var path=RoundedComposerPanel.RoundedPath(new Rectangle(1,1,e.Bounds.Width-2,e.Bounds.Height-2),9))
+                using(Brush fill=new SolidBrush(Color.FromArgb(250,250,250)))
+                using(Pen pen=new Pen(Color.FromArgb(227,227,227))){e.Graphics.FillPath(fill,path);e.Graphics.DrawPath(pen,path);}
+                using(Font title=new Font("Segoe UI Semibold",9F))
+                using(Font detail=new Font("Segoe UI",9F))
+                {
+                    TextRenderer.DrawText(e.Graphics,previewTitle,title,new Rectangle(13,11,e.Bounds.Width-26,36),Color.FromArgb(70,70,70),TextFormatFlags.WordBreak|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+                    TextRenderer.DrawText(e.Graphics,previewText,detail,new Rectangle(13,50,e.Bounds.Width-26,40),Color.FromArgb(125,125,125),TextFormatFlags.WordBreak|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+                }
+            };
+            animation.Tick+=delegate
+            {
+                float target=selected>=0?1:0;emphasis+=(target-emphasis)*.25F;
+                if(Math.Abs(target-emphasis)<.025F){emphasis=target;animation.Stop();}Invalidate();
+            };
+        }
+        internal static string Excerpt(string text,int length)
+        {
+            text=Regex.Replace(text??"","[`#*_]","");text=Regex.Replace(text,"\\s+"," ").Trim();
+            if(text.Length<=length)return text;
+            int end=length-1;if(end>0&&char.IsHighSurrogate(text[end-1]))end--;
+            return text.Substring(0,end).TrimEnd()+"…";
+        }
+        internal void SetTopics(IEnumerable<ConversationTopic> items)
+        {
+            List<ConversationTopic> updated=items.ToList();
+            bool same=updated.Count==topics.Count && updated.Where((t,i)=>t.Row!=topics[i].Row||t.Title!=topics[i].Title).Count()==0;
+            if(!same){preview.Hide(this);selected=-1;animation.Stop();emphasis=0;}
+            topics.Clear();topics.AddRange(updated);Invalidate();
+        }
+        private int Offset(int index){return topics[index].Row.Top-ScrollOwner.AutoScrollPosition.Y;}
+        internal int TopicY(int index)
+        {return 7+(int)((long)Math.Max(0,Offset(index))*Math.Max(1,Height-14)/Math.Max(1,ScrollOwner.DisplayRectangle.Height));}
+        internal override Rectangle Thumb {get{Rectangle r=base.Thumb;r.X=19;return r;}}
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);if(!Visible)return;
+            e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            int previous=-20;
+            for(int i=0;i<topics.Count;i++)
+            {
+                int y=TopicY(i);if(y-previous<4 && i!=selected)continue;previous=y;
+                float amount=i==selected?emphasis:0;
+                using(Pen pen=new Pen(Color.FromArgb((int)(192-85*amount),(int)(192-85*amount),(int)(192-85*amount)),i==selected?2:1.5F))
+                {pen.StartCap=pen.EndCap=System.Drawing.Drawing2D.LineCap.Round;e.Graphics.DrawLine(pen,10-6*amount,y,14,y);}
+            }
+        }
+        internal int HitTopic(Point point)
+        {
+            if(point.X>16 || topics.Count==0)return -1;
+            int nearest=-1,distance=8;
+            for(int i=0;i<topics.Count;i++){int d=Math.Abs(point.Y-TopicY(i));if(d<distance){nearest=i;distance=d;}}
+            return nearest;
+        }
+        private void SelectTopic(int index,Point point)
+        {
+            if(index==selected)return;selected=index;preview.Hide(this);
+            if(SystemInformation.IsMenuAnimationEnabled)animation.Start();else{emphasis=index>=0?1:0;Invalidate();}
+            Cursor=index>=0?Cursors.Hand:Cursors.Default;
+            if(index<0)return;
+            previewTitle=topics[index].Title;previewText=Excerpt(topics[index].Preview(),140);
+            if(previewText.Length==0)previewText="Перейти к этому вопросу";
+            Point screen=PointToScreen(point);Rectangle bounds=Screen.FromPoint(screen).WorkingArea;
+            Point location=new Point(Math.Max(bounds.Left+8,screen.X-previewSize.Width-16),Math.Max(bounds.Top+8,Math.Min(bounds.Bottom-previewSize.Height-8,screen.Y+14)));
+            preview.Show(previewTitle+"\n"+previewText,this,PointToClient(location),15000);
+        }
+        protected override void OnMouseMove(MouseEventArgs e)
+        {base.OnMouseMove(e);if(!thumbDragging)SelectTopic(HitTopic(e.Location),e.Location);}
+        protected override void OnMouseLeave(EventArgs e){base.OnMouseLeave(e);SelectTopic(-1,Point.Empty);}
+        internal void JumpToTopic(int index)
+        {if(index<0||index>=topics.Count)return;ScrollOwner.UserScrollTo(Math.Max(0,Offset(index)-12));preview.Hide(this);}
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if(e.Button==MouseButtons.Left){int index=HitTopic(e.Location);if(index>=0){Focus();JumpToTopic(index);return;}thumbDragging=true;SelectTopic(-1,Point.Empty);}
+            base.OnMouseDown(e);
+        }
+        protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);thumbDragging=false;}
+        protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture)thumbDragging=false;}
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if(e.Alt && (e.KeyCode==Keys.Up||e.KeyCode==Keys.Down))
+            {
+                int position=-ScrollOwner.AutoScrollPosition.Y+13,index=-1;
+                if(e.KeyCode==Keys.Down){for(int i=0;i<topics.Count;i++)if(Offset(i)>position){index=i;break;}}
+                else for(int i=topics.Count-1;i>=0;i--)if(Offset(i)<position-2){index=i;break;}
+                JumpToTopic(index);e.Handled=true;e.SuppressKeyPress=true;return;
+            }
+            base.OnKeyDown(e);
+        }
+        protected override void Dispose(bool disposing){if(disposing){preview.Dispose();animation.Dispose();}base.Dispose(disposing);}
+    }
+
     public sealed partial class MainForm
     {
+        private ConversationScrollBar conversationScroll;
+        private void RefreshConversationTopics(ChatSession chat)
+        {
+            if(conversationScroll==null)return;
+            List<ConversationTopic> topics=new List<ConversationTopic>();
+            for(int i=0;i<chat.messages.Count;i++)
+            {
+                ChatMessage question=chat.messages[i];if(question.role!="user")continue;
+                Tuple<string,Control> row;if(!renderedRows.TryGetValue(question,out row))continue;
+                ChatMessage answer=chat.messages.Skip(i+1).TakeWhile(m=>m.role!="user").LastOrDefault(m=>m.role=="assistant");
+                string title=ConversationScrollBar.Excerpt(question.content,85);
+                topics.Add(new ConversationTopic{Row=row.Item2,Title=title.Length>0?title:"Вопрос с вложением",Preview=()=>answer==null?"Ожидание ответа":string.IsNullOrWhiteSpace(answer.content)?"Ответ формируется…":answer.content});
+            }
+            conversationScroll.SetTopics(topics);
+        }
         private static void InstallScrollBar(FlowLayoutPanel panel,Control parent)
         {
             ModernFlowPanel modern=panel as ModernFlowPanel;if(modern==null)return;
