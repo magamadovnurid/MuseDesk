@@ -50,6 +50,17 @@ async function run(win,store,app){
     await script('document.querySelector("[data-menu=help]").click();document.querySelector("#menu-popup button").click()');await new Promise(r=>setTimeout(r,200));
     assert.equal(await script('document.getElementById("onboarding").open'),true);assert.match(await script('document.getElementById("hardware").textContent'),/48 ГБ/);
     fs.writeFileSync(path.join(output,'macos-setup.png'),(await win.webContents.capturePage()).toPNG());
+    for(const ram of [8,16,24]){
+      await script(`renderSetupHardware({profile:'app-only',ramBytes:${ram}*1024**3,freeBytes:200*1024**3,chip:'Apple M2',osVersion:'15.6'})`);
+      assert.equal(await script('document.getElementById("setup-install").disabled'),true);
+      assert.match(await script('document.getElementById("setup-title").textContent'),/не подходит/);
+      assert.match(await script('document.getElementById("hardware").textContent'),new RegExp(ram+' ГБ'));
+      assert.doesNotMatch(await script('document.getElementById("setup-install").textContent'),/Установить движок/);
+    }
+    fs.writeFileSync(path.join(output,'macos-setup-ineligible.png'),(await win.webContents.capturePage()).toPNG());
+    await script("renderSetupHardware({profile:'unverified',ramBytes:NaN,freeBytes:NaN,chip:'Не определён',osVersion:'—'})");
+    assert.equal(await script('document.getElementById("setup-install").disabled'),true);
+    assert.match(await script('document.getElementById("setup-title").textContent'),/Не удалось проверить/);
     console.log('MAC UI SMOKE PASSED: layout, menus, projects, chat creation, composer, setup');app.exit(0);
   }catch(error){console.error(error);fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());app.exit(1);}
 }

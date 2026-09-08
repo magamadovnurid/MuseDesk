@@ -11,7 +11,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Muse Desk Setup")]
-[assembly: AssemblyVersion("1.24.3.0")]
+[assembly: AssemblyVersion("1.24.4.0")]
 namespace MuseDeskSetup
 {
     internal sealed class SoftButton:Button

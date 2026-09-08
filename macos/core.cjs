@@ -4,10 +4,24 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const GiB=1024**3;
 function profileFor({platform,arch,major,ramBytes,freeBytes}) {
-  if(platform!=='darwin'||arch!=='arm64'||major<14)return 'unsupported';
+  if(platform!=='darwin'||arch!=='arm64')return 'unsupported';
+  if(!Number.isSafeInteger(major)||major<=0||!Number.isSafeInteger(ramBytes)||ramBytes<=0||!Number.isSafeInteger(freeBytes)||freeBytes<0)return 'unverified';
+  if(major<14)return 'unsupported';
   if(ramBytes<32*GiB||freeBytes<40*GiB)return 'app-only';
   return ramBytes>=64*GiB?'glimmer-q4-f16':'glimmer-q4-q8';
 }
+function compatibilityFor(h,{loading=false}={}){
+  const profile=profileFor({...h,freeBytes:loading?40*GiB:(h.budgetFreeBytes??h.freeBytes)});
+  const reasons=[];
+  if(profile==='unsupported')reasons.push('Для приложения нужны Apple Silicon, macOS 14+ и запуск без Rosetta.');
+  else if(profile==='unverified')reasons.push('Не удалось достоверно определить параметры Mac. Загрузка Glimmer заблокирована. Повторите проверку системы.');
+  else {
+    if(h.ramBytes<32*GiB)reasons.push(`Установлено ${(h.ramBytes/GiB).toFixed(0)} ГБ объединённой памяти. Для Muse Glimmer нужно не менее 32 ГБ. Место на SSD не заменяет память.`);
+    if(!loading&&(h.budgetFreeBytes??h.freeBytes)<40*GiB)reasons.push('Недостаточно места для установки: нужно 40 ГиБ с учётом уже скачанных компонентов.');
+  }
+  return {profile,appSupported:profile!=='unsupported'&&profile!=='unverified',eligible:profile==='glimmer-q4-q8'||profile==='glimmer-q4-f16',reasons};
+}
+function requireGlimmer(h,options){const assessment=compatibilityFor(h,options);if(!assessment.eligible)throw Error(assessment.reasons.join(' '));return assessment;}
 function atomicJSON(file,data){
   fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
   const temp=file+'.tmp';const fd=fs.openSync(temp,'w',0o600);
@@ -39,4 +53,4 @@ function safeProjectPath(root,relative,write=false){
   if(!write&&!fs.existsSync(target))throw Error('Файл не найден');
   return target;
 }
-module.exports={GiB,profileFor,atomicJSON,freshState,Store,exclusive,safeProjectPath};
+module.exports={GiB,profileFor,compatibilityFor,requireGlimmer,atomicJSON,freshState,Store,exclusive,safeProjectPath};

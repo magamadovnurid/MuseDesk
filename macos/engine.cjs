@@ -2,11 +2,11 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const {spawn}=require('node:child_process');
-const {exclusive}=require('./core.cjs');
-const {findEngine}=require('./setup.cjs');
+const {exclusive,requireGlimmer}=require('./core.cjs');
+const {findEngine,probe}=require('./setup.cjs');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 class Engine{
-  constructor(root,status=()=>{},options={}){this.root=root;this.status=status;this.base=options.base||'http://127.0.0.1:11436';this.fetch=options.fetch||globalThis.fetch;this.child=null;this.preparing=false;this.selected=null;this.test=options.test===true;this.closed=false;}
+  constructor(root,status=()=>{},options={}){this.root=root;this.status=status;this.base=options.base||'http://127.0.0.1:11436';this.fetch=options.fetch||globalThis.fetch;this.child=null;this.preparing=false;this.selected=null;this.test=options.test===true;this.probe=options.probe||probe;this.closed=false;}
   async api(route,body,{signal,onChunk,timeout=120000}={}){
     const combined=AbortSignal.any([AbortSignal.timeout(timeout),...(signal?[signal]:[])]);
     const response=await this.fetch(this.base+route,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:combined});
@@ -35,7 +35,7 @@ class Engine{
   }
   async prepare(model,context=8192){
     if(this.preparing)throw Error('Дождитесь завершения загрузки');this.preparing=true;this.selected=null;
-    try{this.status({state:'loading',message:'Подключаем движок'});await this.start();
+    try{if(!this.test&&/muse-glimmer/i.test(model))requireGlimmer(this.probe(this.root),{loading:true});this.status({state:'loading',message:'Подключаем движок'});await this.start();
       const tags=(await this.api('/api/tags')).models||[];
       if(!tags.some(row=>row.name===model||row.model===model))throw Error('Модель не установлена. Откройте настройку Glimmer.');
       this.status({state:'loading',message:'Выгружаем предыдущие модели'});
