@@ -11,6 +11,11 @@ async function run(win,store,app){
     assert.equal(await script('document.querySelectorAll(".message-assistant").length'),1);
     assert.match(await script('document.getElementById("tree").textContent'),/Muse Studio/);
     assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
+    if(process.platform==='linux'){
+      assert.equal(await script('document.querySelector(".platform").textContent'),'Ubuntu');
+      assert.equal(await script('document.querySelectorAll(".window-controls button").length'),3);
+      assert.equal(await script('document.querySelector(".setup-intro li").textContent'),'Проверка компьютера');
+    }
     await script('Promise.all([...document.images].map(img=>img.decode())).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     fs.writeFileSync(path.join(output,'macos-overview.png'),(await win.webContents.capturePage()).toPNG());
     assert.equal(await script('document.getElementById("topic-nav").hidden'),false);
@@ -64,7 +69,13 @@ async function run(win,store,app){
     await script("renderSetupHardware({profile:'unverified',ramBytes:NaN,freeBytes:NaN,chip:'Не определён',osVersion:'—'})");
     assert.equal(await script('document.getElementById("setup-install").disabled'),true);
     assert.match(await script('document.getElementById("setup-title").textContent'),/Не удалось проверить/);
-    console.log('MAC UI SMOKE PASSED: layout, menus, projects, chat creation, composer, setup');app.exit(0);
+    await script('document.getElementById("onboarding").close()');
+    win.setSize(940,650);await new Promise(r=>setTimeout(r,200));
+    assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
+    assert.equal(await script('document.getElementById("send").getBoundingClientRect().right <= document.getElementById("composer").getBoundingClientRect().right'),true);
+    assert.equal(await script('document.getElementById("think").getBoundingClientRect().right <= document.getElementById("model").getBoundingClientRect().left'),true);
+    fs.writeFileSync(path.join(output,process.platform+'-compact.png'),(await win.webContents.capturePage()).toPNG());
+    console.log('DESKTOP UI SMOKE PASSED: layout, menus, projects, chat creation, composer, setup');app.exit(0);
   }catch(error){console.error(error);fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());app.exit(1);}
 }
 module.exports={run};
