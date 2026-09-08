@@ -10,7 +10,7 @@ The historical Apps SDK UI MIT license file is retained for attribution of earli
 
 ## Runtime and build dependencies
 
-The macOS application embeds Electron 44.2.0 (MIT) and its Chromium/Node.js components with their bundled license notices. It is packaged with electron-builder 26.15.3 (MIT). Exact build dependencies and integrity values are pinned in `macos/pnpm-lock.yaml`. Apple system fonts and voices are supplied by macOS, not redistributed. The Mac icon and interface vectors are project drawings. The Darwin Ollama archive has its own pinned SHA-256 in `macos/catalog.json`; model publisher licensing remains separate from the application.
+The macOS and Ubuntu applications embed Electron 44.2.0 (MIT) and its Chromium/Node.js components with their bundled license notices. It is packaged with electron-builder 26.15.3 (MIT). Exact build dependencies and integrity values are pinned in `macos/pnpm-lock.yaml`. Apple system fonts and voices are supplied by macOS, not redistributed. The Mac icon and interface vectors are project drawings. The Darwin and Linux Ollama archives have separate pinned SHA-256 values in `macos/catalog.json`; model publisher licensing remains separate from the application.
 
 - Ollama 0.33.3: https://github.com/ollama/ollama/releases/tag/v0.33.3. The separate official archive retains its included license and dependency notices.
 - Glimmer GGUF in the new installer: https://huggingface.co/mradermacher/Muse-Glimmer-30B-heretic-GGUF, Apache-2.0 as declared by the publisher; based on darkc0de/Muse-Glimmer-30B-heretic. The installer catalog records the immutable revision and per-file hashes. Model capability, license, origin and quality are distinct from those of the Muse Desk UI.
@@ -19,3 +19,5 @@ The macOS application embeds Electron 44.2.0 (MIT) and its Chromium/Node.js comp
 - Experimental Mac client requires Electron; it is not included in the Windows installer.
 
 Downloaded weights and runtime archives are not stored in Git. Network access to their publishers is required for initial installation.
+
+Ubuntu installs system libraries, curl, zstd and espeak-ng through APT; their licenses and notices are provided by the distribution packages under `/usr/share/doc/`. System fonts and speech packages are not embedded in the Muse Desk DEB.

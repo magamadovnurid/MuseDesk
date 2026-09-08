@@ -1,4 +1,6 @@
-# Установка Muse Desk
+# Установка Muse Desk на Windows
+
+Выпуски включают **Windows EXE/ZIP, macOS DMG/ZIP и Ubuntu DEB**. Это руководство описывает Windows. Для других платформ: [установка macOS](MACOS.md) · [установка Ubuntu](UBUNTU.md).
 
 ## Что передать другому человеку
 
