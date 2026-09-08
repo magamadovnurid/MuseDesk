@@ -1009,6 +1009,7 @@ namespace MuseDeskNative
                 typeof(Control).GetMethod("OnMouseWheel",flags).Invoke(summary,new object[]{new HandledMouseEventArgs(MouseButtons.None,0,10,10,-120)});
                 Check(-scroll.AutoScrollPosition.Y>0 && !followResponseTail,"Wheel over response text scrolls the conversation and releases automatic following");
                 Check(conversationScroll.TopicCount==3,"Each user question has a conversation topic marker");
+                Check(center.Controls.GetChildIndex(conversationScroll)<center.Controls.GetChildIndex(messageList),"Conversation navigation stays in front of the transcript surface");
                 Point marker=new Point(10,conversationScroll.TopicY(1));
                 typeof(ConversationScrollBar).GetMethod("OnMouseMove",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.None,0,marker.X,marker.Y,0)});
                 Check(conversationScroll.SelectedTopic==1 && conversationScroll.PreviewTitle.Contains("найти") && conversationScroll.PreviewText.Contains("поиск"),"Hover preview shows the question topic and its response excerpt");
