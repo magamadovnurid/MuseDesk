@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.4.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.4.0")]
+[assembly: System.Reflection.AssemblyVersion("1.24.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.24.5.0")]
 
 namespace MuseDeskNative
 {
@@ -361,7 +361,8 @@ namespace MuseDeskNative
             messageList.BringToFront();
             ((ModernFlowPanel)messageList).UserScrolled+=delegate{followResponseTail=-messageList.AutoScrollPosition.Y+messageList.ClientSize.Height>=messageList.DisplayRectangle.Height-12;if(!followResponseTail)scrollAnimationTarget=-1;};
             BuildResultsPanel();
-            conversationScroll=new ConversationScrollBar((ModernFlowPanel)messageList);center.Controls.Add(conversationScroll);
+            InstallScrollBar(messageList,center);
+            conversationScroll=new ConversationNavigator((ModernFlowPanel)messageList);center.Controls.Add(conversationScroll);
             center.Resize += delegate { if (rightRail.Visible && ClientSize.Width < 1140) { rightRail.Visible = false; detailsButton.BackColor = Surface; } LayoutWorkspace(); if (messageList != null) RenderConversation(); };
             KeyDown += OnGlobalKeyDown;
             BuildApplicationMenu();

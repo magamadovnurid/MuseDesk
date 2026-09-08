@@ -13,6 +13,7 @@ async function run(win,store,app){
     assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
     await script('Promise.all([...document.images].map(img=>img.decode())).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     fs.writeFileSync(path.join(output,'macos-overview.png'),(await win.webContents.capturePage()).toPNG());
+    assert.equal(await script('document.getElementById("topic-nav").hidden'),false);
     await script(`window.savedReply=structuredClone(active().messages[1]);Object.assign(active().messages[1],{content:'Файл обновлён. Проверка завершена.',finalSummary:'Файл обновлён. Проверка завершена.',completedAt:new Date().toISOString(),actions:[{name:'read_text_file',args:{path:'src/example.txt'},status:'завершено',output:'Исходный текст'},{name:'write_text_file',args:{path:'src/example.txt'},status:'завершено',output:'Файл обновлён'}]});renderMessages();`);
     assert.equal(await script('document.querySelector(".completion-state").textContent'),'Готово');
     assert.equal(await script('document.querySelector(".action-log").compareDocumentPosition(document.querySelector(".completion-state")) & Node.DOCUMENT_POSITION_FOLLOWING'),4);
@@ -26,6 +27,7 @@ async function run(win,store,app){
     await script(`active().messages.push({role:'user',content:'Как быстро найти материал?'},{role:'assistant',content:'Используйте поиск и метки тем.\\n'+('Подробная строка ответа.\\n'.repeat(240))},{role:'user',content:'Что добавить на главную страницу?'},{role:'assistant',content:'Описание проекта и ссылки на разделы.'});renderMessages();`);
     await script('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
     assert.equal(await script('document.querySelectorAll("#topic-nav button").length'),3);
+    assert.equal(await script('(()=>{const h=document.getElementById("messages").getBoundingClientRect(),n=document.getElementById("topic-nav").getBoundingClientRect(),b=[...document.querySelectorAll("#topic-nav button")].map(e=>e.getBoundingClientRect());return n.left>=h.left&&n.right<=h.left+26&&Math.abs((b[0].top+b[0].height/2+b[2].top+b[2].height/2)/2-(h.top+h.height/2))<2})()'),true);
     assert.equal(await script('document.querySelectorAll(".message-content").length'),3);
     assert.equal(await script('[...document.querySelectorAll(".message-content")].every(e=>e.scrollHeight<=e.clientHeight+1)'),true);
     await script('document.querySelectorAll("#topic-nav button")[1].dispatchEvent(new PointerEvent("pointermove",{clientX:1000,clientY:150}))');
@@ -35,6 +37,7 @@ async function run(win,store,app){
     for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,50));if(await script('Math.abs(document.querySelectorAll("#messages article")[2].getBoundingClientRect().top-document.getElementById("messages").getBoundingClientRect().top-12)<2'))break;}
     const jump=await script('({top:document.querySelectorAll("#messages article")[2].getBoundingClientRect().top,host:document.getElementById("messages").getBoundingClientRect().top,scroll:document.getElementById("messages").scrollTop})');
     assert.ok(Math.abs(jump.top-jump.host-12)<2,JSON.stringify(jump));
+    assert.equal(await script('document.querySelectorAll("#topic-nav button")[1].getAttribute("aria-current")'),'true');
     const hoverPoint=await script('(()=>{const r=document.querySelectorAll("#topic-nav button")[1].getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}})()');
     win.webContents.sendInputEvent({type:'mouseMove',...hoverPoint});await new Promise(r=>setTimeout(r,200));
     assert.equal(await script('document.getElementById("topic-preview").classList.contains("hidden")'),false);

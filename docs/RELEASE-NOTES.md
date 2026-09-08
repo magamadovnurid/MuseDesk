@@ -1,23 +1,21 @@
-# Muse Desk 1.24.4 — Windows + Apple Silicon
+# Muse Desk 1.24.5 — Windows + Apple Silicon
 
 > **Preview — предварительная версия.** Пометка Latest означает самый новый доступный выпуск, а не завершённую аппаратную приёмку. Ограничения подписи и совместимости описаны ниже.
 
-Усилена проверка совместимости Mac перед установкой Muse Glimmer. Мастер показывает реальную установленную объединённую память и причину отказа. На Mac с 8, 16 или 24 ГБ загрузка Glimmer недоступна; неизвестные и некорректные параметры также блокируют скачивание.
+Навигатор тем перенесён на левый край центральной ленты в Windows и macOS. Короткие штрихи образуют вертикальный ряд по центру высоты переписки. Он виден и в коротком диалоге, если в нём есть вопросы.
 
-Память считывается через `sysctl hw.memsize` и сверяется с системным API. Проверка выполняется при открытии мастера, повторно перед установкой, перед скачиванием весов и перед запуском уже установленной Glimmer. Backend самостоятельно определяет профиль, не доверяя ранее показанному статусу. Результат и причина сохраняются локально в `hardware-check.json`.
+При наведении выбранный штрих плавно расширяется и темнеет, предыдущий возвращается к обычному виду. Рядом появляется тема и краткий фрагмент ответа; нажатие переходит к соответствующему вопросу. При прокрутке отмечается текущая тема. Общая полоса прокрутки остаётся справа. Настройка уменьшения анимации учитывается на обеих платформах.
 
-На неподходящем Mac мастер больше не предлагает скачать движок вместо модели. Для Glimmer сохранены минимальные требования: Apple Silicon, macOS 14+, 32 ГБ объединённой памяти и 40 ГиБ для установки. Доступность профиля не заменяет аппаратную проверку генерации под нагрузкой.
-
-Windows-пакет опубликован в том же выпуске; прежние проверки NVIDIA/RAM сохранены. Улучшения центральной ленты из 1.24.3 также сохранены.
+Сохранены проверка памяти Mac перед скачиванием Glimmer, ответ без рамки со статусом «Готово», компактные действия и исправления навязчивых уточнений. Выпуск содержит Windows EXE и macOS DMG/ZIP.
 
 ## Выберите файл
 
 | Компьютер | Файл |
 |---|---|
-| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.4-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
-| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.4-preview.1/MuseDesk-Windows-x64-App.zip) |
-| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.4-preview.1/MuseDesk-1.24.4-macOS-AppleSilicon.dmg)** |
-| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.4-preview.1/MuseDesk-1.24.4-macOS-AppleSilicon.zip) |
+| **Windows x64**, новая установка | **[Скачать установщик EXE](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.5-preview.1/MuseDesk-Windows-x64-Setup.exe)** |
+| Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.5-preview.1/MuseDesk-Windows-x64-App.zip) |
+| **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.5-preview.1/MuseDesk-1.24.5-macOS-AppleSilicon.dmg)** |
+| Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.24.5-preview.1/MuseDesk-1.24.5-macOS-AppleSilicon.zip) |
 
 Контрольные суммы всех пакетов — **SHA256SUMS.txt**. Исходники доступны стандартными архивами GitHub. Веса модели не включены в пакеты: они скачиваются мастером настройки.
 

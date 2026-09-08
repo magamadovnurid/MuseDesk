@@ -1019,20 +1019,24 @@ namespace MuseDeskNative
                 typeof(Control).GetMethod("OnMouseWheel",flags).Invoke(summary,new object[]{new HandledMouseEventArgs(MouseButtons.None,0,10,10,-120)});
                 Check(-scroll.AutoScrollPosition.Y>0 && !followResponseTail,"Wheel over response text scrolls the conversation and releases automatic following");
                 Check(conversationScroll.TopicCount==3,"Each user question has a conversation topic marker");
+                Check(conversationScroll.Left==messageList.Left+2 && Math.Abs((conversationScroll.TopicY(0)+conversationScroll.TopicY(2))/2-messageList.Height/2)<=1,"Topic dashes form a vertically centered navigator at the left edge");
+                Check(center.Controls.OfType<ThinScrollBar>().Count(b=>b.ScrollOwner==messageList)==1,"Conversation retains exactly one separate scrollbar on the right");
                 Check(center.Controls.GetChildIndex(conversationScroll)<center.Controls.GetChildIndex(messageList),"Conversation navigation stays in front of the transcript surface");
                 Point marker=new Point(10,conversationScroll.TopicY(1));
-                typeof(ConversationScrollBar).GetMethod("OnMouseMove",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.None,0,marker.X,marker.Y,0)});
+                typeof(ConversationNavigator).GetMethod("OnMouseMove",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.None,0,marker.X,marker.Y,0)});
                 Check(conversationScroll.SelectedTopic==1 && conversationScroll.PreviewTitle.Contains("найти") && conversationScroll.PreviewText.Contains("поиск"),"Hover preview shows the question topic and its response excerpt");
                 using(Bitmap barImage=new Bitmap(conversationScroll.Width,conversationScroll.Height))
                 {conversationScroll.DrawToBitmap(barImage,conversationScroll.ClientRectangle);barImage.Save(Path.Combine(output,"conversation-scroll-detail.png"));}
                 DesignPreview.Capture(this,Path.Combine(output,"conversation-topics.png"));
-                typeof(ConversationScrollBar).GetMethod("OnMouseDown",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.Left,1,marker.X,marker.Y,0)});
+                typeof(ConversationNavigator).GetMethod("OnMouseDown",flags).Invoke(conversationScroll,new object[]{new MouseEventArgs(MouseButtons.Left,1,marker.X,marker.Y,0)});
                 Check(Math.Abs(renderedRows[fixture.messages[2]].Item2.Top-12)<=1,"Clicking a topic positions its question at the top of the conversation");
-                typeof(ConversationScrollBar).GetMethod("OnKeyDown",flags).Invoke(conversationScroll,new object[]{new KeyEventArgs(Keys.Alt|Keys.Up)});
+                typeof(ConversationNavigator).GetMethod("OnKeyDown",flags).Invoke(conversationScroll,new object[]{new KeyEventArgs(Keys.Alt|Keys.Up)});
                 Check(Math.Abs(renderedRows[fixture.messages[0]].Item2.Top-12)<=1,"Alt+Up navigates to the preceding topic");
                 scroll.UserScrollTo(scroll.MaximumOffset);
                 Check(messageList.Controls[messageList.Controls.Count-1].Bottom<=messageList.ClientSize.Height,"Shared scrollbar reaches the last response");
                 DesignPreview.Capture(this,Path.Combine(output,"conversation-one-scroll.png"));
+                fixture.messages.Clear();fixture.messages.Add(new ChatMessage{role="user",content="Короткий вопрос"});RenderConversation();Application.DoEvents();
+                Check(scroll.MaximumOffset==0 && conversationScroll.Visible && conversationScroll.TopicCount==1,"Left topic navigator is visible even before the conversation needs scrolling");
             }
             finally{state.chats.Remove(fixture);activeChat=previous;state.activeChatId=previous.id;SetReviewSize(oldSize);RenderConversation();}
         }
@@ -1053,7 +1057,7 @@ namespace MuseDeskNative
                 RenderConversation();Check(object.ReferenceEquals(row,messageList.Controls[0]),"Incoming stream updates retain the same response control");
                 for(int i=0;i<150;i++)AnimateStreamFrame();
                 Check(view.Displayed==reply.content,"Smooth presentation loses no response characters");
-                Check(center.Controls.OfType<ConversationScrollBar>().Any(b=>b.Visible),"Conversation scrollbar remains visible during a long streamed answer");
+                Check(center.Controls.OfType<ThinScrollBar>().Any(b=>b.Visible),"Conversation scrollbar remains visible during a long streamed answer");
                 Check(view.Body.ScrollBars==RichTextBoxScrollBars.None && view.Body.Height>600,"Streaming response grows without an inner scrollbar");
                 ((ModernFlowPanel)messageList).UserScrollTo(0);reply.content+="\nНовая строка во время чтения истории.";
                 for(int i=0;i<40;i++)AnimateStreamFrame();

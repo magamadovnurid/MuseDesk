@@ -131,23 +131,26 @@ namespace MuseDeskNative
         internal Func<string> Preview;
     }
 
-    internal sealed class ConversationScrollBar : ThinScrollBar
+    internal sealed class ConversationNavigator : Control
     {
         private readonly List<ConversationTopic> topics=new List<ConversationTopic>();
         private readonly ToolTip preview=new ToolTip{OwnerDraw=true,UseAnimation=false,UseFading=false,ShowAlways=true};
         private readonly Timer animation=new Timer{Interval=16};
         private int selected=-1;
-        private float emphasis;
-        private bool thumbDragging;
+        private float[] strengths=new float[0];
+        private readonly ModernFlowPanel owner;
+        internal ModernFlowPanel ScrollOwner {get{return owner;}}
         private string previewTitle="",previewText="";
         private Size previewSize=new Size(286,100);
         internal int TopicCount {get{return topics.Count;}}
         internal int SelectedTopic {get{return selected;}}
         internal string PreviewTitle {get{return previewTitle;}}
         internal string PreviewText {get{return previewText;}}
-        internal ConversationScrollBar(ModernFlowPanel owner):base(owner)
+        internal ConversationNavigator(ModernFlowPanel panel)
         {
-            Width=28;AccessibleName="Прокрутка диалога и темы. Alt+стрелки — переход между вопросами";
+            owner=panel;Width=24;TabStop=true;AccessibleRole=AccessibleRole.List;AccessibleName="Темы диалога. Стрелки — переход между вопросами";
+            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
+            owner.ViewChanged+=UpdatePosition;owner.VisibleChanged+=UpdatePosition;owner.LocationChanged+=UpdatePosition;owner.SizeChanged+=UpdatePosition;
             preview.Popup+=delegate(object sender,PopupEventArgs e){e.ToolTipSize=previewSize;};
             preview.Draw+=delegate(object sender,DrawToolTipEventArgs e)
             {
@@ -164,10 +167,17 @@ namespace MuseDeskNative
             };
             animation.Tick+=delegate
             {
-                float target=selected>=0?1:0;emphasis+=(target-emphasis)*.25F;
-                if(Math.Abs(target-emphasis)<.025F){emphasis=target;animation.Stop();}Invalidate();
+                bool moving=false;
+                for(int i=0;i<strengths.Length;i++){float target=i==selected?1:0;strengths[i]+=(target-strengths[i])*.25F;if(Math.Abs(target-strengths[i])<.025F)strengths[i]=target;else moving=true;}
+                if(!moving)animation.Stop();Invalidate();
             };
         }
+        private void UpdatePosition(object sender,EventArgs e)
+        {
+            if(IsDisposed||owner.IsDisposed)return;Bounds=new Rectangle(owner.Left+2,owner.Top,Width,owner.Height);BackColor=owner.BackColor;Visible=owner.Visible&&topics.Count>0;if(Visible)BringToFront();Invalidate();
+        }
+        protected override void OnParentChanged(EventArgs e){base.OnParentChanged(e);if(owner!=null)UpdatePosition(this,EventArgs.Empty);}
+        protected override void OnMouseWheel(MouseEventArgs e){owner.ScrollWheel(e.Delta);var handled=e as HandledMouseEventArgs;if(handled!=null)handled.Handled=true;}
         internal static string Excerpt(string text,int length)
         {
             text=Regex.Replace(text??"","[`#*_]","");text=Regex.Replace(text,"\\s+"," ").Trim();
@@ -179,29 +189,29 @@ namespace MuseDeskNative
         {
             List<ConversationTopic> updated=items.ToList();
             bool same=updated.Count==topics.Count && updated.Where((t,i)=>t.Row!=topics[i].Row||t.Title!=topics[i].Title).Count()==0;
-            if(!same){preview.Hide(this);selected=-1;animation.Stop();emphasis=0;}
-            topics.Clear();topics.AddRange(updated);Invalidate();
+            if(!same){preview.Hide(this);selected=-1;animation.Stop();strengths=new float[updated.Count];}
+            topics.Clear();topics.AddRange(updated);UpdatePosition(this,EventArgs.Empty);
         }
         private int Offset(int index){return topics[index].Row.Top-ScrollOwner.AutoScrollPosition.Y;}
         internal int TopicY(int index)
-        {return 7+(int)((long)Math.Max(0,Offset(index))*Math.Max(1,Height-14)/Math.Max(1,ScrollOwner.DisplayRectangle.Height));}
-        internal override Rectangle Thumb {get{Rectangle r=base.Thumb;r.X=19;return r;}}
+        {float span=Math.Min(360,Math.Max(1,Height-40)),step=Math.Min(14,span/Math.Max(1,topics.Count-1));return (int)Math.Round((Height-step*(topics.Count-1))/2+step*index);}
+        private int ActiveTopic(){if(owner.MaximumOffset>0 && -owner.AutoScrollPosition.Y>=owner.MaximumOffset-1)return topics.Count-1;int active=0;for(int i=0;i<topics.Count;i++)if(!topics[i].Row.IsDisposed&&topics[i].Row.Top<=24)active=i;return active;}
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);if(!Visible)return;
+            e.Graphics.Clear(BackColor);if(!Visible)return;
             e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            int previous=-20;
+            int previous=-20,active=ActiveTopic();
             for(int i=0;i<topics.Count;i++)
             {
                 int y=TopicY(i);if(y-previous<4 && i!=selected)continue;previous=y;
-                float amount=i==selected?emphasis:0;
+                float amount=strengths[i];if(selected<0&&i==active)amount=Math.Max(.45F,amount);
                 using(Pen pen=new Pen(Color.FromArgb((int)(192-85*amount),(int)(192-85*amount),(int)(192-85*amount)),i==selected?2:1.5F))
-                {pen.StartCap=pen.EndCap=System.Drawing.Drawing2D.LineCap.Round;e.Graphics.DrawLine(pen,10-6*amount,y,14,y);}
+                {pen.StartCap=pen.EndCap=System.Drawing.Drawing2D.LineCap.Round;e.Graphics.DrawLine(pen,7,y,12+7*amount,y);}
             }
         }
         internal int HitTopic(Point point)
         {
-            if(point.X>16 || topics.Count==0)return -1;
+            if(point.X<0 || point.X>=Width || topics.Count==0)return -1;
             int nearest=-1,distance=8;
             for(int i=0;i<topics.Count;i++){int d=Math.Abs(point.Y-TopicY(i));if(d<distance){nearest=i;distance=d;}}
             return nearest;
@@ -209,44 +219,41 @@ namespace MuseDeskNative
         private void SelectTopic(int index,Point point)
         {
             if(index==selected)return;selected=index;preview.Hide(this);
-            if(SystemInformation.IsMenuAnimationEnabled)animation.Start();else{emphasis=index>=0?1:0;Invalidate();}
+            if(SystemInformation.IsMenuAnimationEnabled)animation.Start();else{for(int i=0;i<strengths.Length;i++)strengths[i]=i==index?1:0;Invalidate();}
             Cursor=index>=0?Cursors.Hand:Cursors.Default;
             if(index<0)return;
             previewTitle=topics[index].Title;previewText=Excerpt(topics[index].Preview(),140);
             if(previewText.Length==0)previewText="Перейти к этому вопросу";
             Point screen=PointToScreen(point);Rectangle bounds=Screen.FromPoint(screen).WorkingArea;
-            Point location=new Point(Math.Max(bounds.Left+8,screen.X-previewSize.Width-16),Math.Max(bounds.Top+8,Math.Min(bounds.Bottom-previewSize.Height-8,screen.Y+14)));
+            Point location=new Point(Math.Max(bounds.Left+8,Math.Min(bounds.Right-previewSize.Width-8,screen.X+18)),Math.Max(bounds.Top+8,Math.Min(bounds.Bottom-previewSize.Height-8,screen.Y+14)));
             preview.Show(previewTitle+"\n"+previewText,this,PointToClient(location),15000);
         }
         protected override void OnMouseMove(MouseEventArgs e)
-        {base.OnMouseMove(e);if(!thumbDragging)SelectTopic(HitTopic(e.Location),e.Location);}
+        {base.OnMouseMove(e);SelectTopic(HitTopic(e.Location),e.Location);}
         protected override void OnMouseLeave(EventArgs e){base.OnMouseLeave(e);SelectTopic(-1,Point.Empty);}
         internal void JumpToTopic(int index)
         {if(index<0||index>=topics.Count)return;ScrollOwner.UserScrollTo(Math.Max(0,Offset(index)-12));preview.Hide(this);}
         protected override void OnMouseDown(MouseEventArgs e)
-        {
-            if(e.Button==MouseButtons.Left){int index=HitTopic(e.Location);if(index>=0){Focus();JumpToTopic(index);return;}thumbDragging=true;SelectTopic(-1,Point.Empty);}
-            base.OnMouseDown(e);
-        }
-        protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);thumbDragging=false;}
-        protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture)thumbDragging=false;}
+        {base.OnMouseDown(e);if(e.Button==MouseButtons.Left){int index=HitTopic(e.Location);if(index>=0){Focus();JumpToTopic(index);}}}
+        protected override bool IsInputKey(Keys keyData){Keys key=keyData&Keys.KeyCode;return key==Keys.Up||key==Keys.Down||key==Keys.Home||key==Keys.End||base.IsInputKey(keyData);}
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if(e.Alt && (e.KeyCode==Keys.Up||e.KeyCode==Keys.Down))
+            if(e.KeyCode==Keys.Up||e.KeyCode==Keys.Down)
             {
                 int position=-ScrollOwner.AutoScrollPosition.Y+13,index=-1;
                 if(e.KeyCode==Keys.Down){for(int i=0;i<topics.Count;i++)if(Offset(i)>position){index=i;break;}}
                 else for(int i=topics.Count-1;i>=0;i--)if(Offset(i)<position-2){index=i;break;}
                 JumpToTopic(index);e.Handled=true;e.SuppressKeyPress=true;return;
             }
+            if(e.KeyCode==Keys.Home||e.KeyCode==Keys.End){JumpToTopic(e.KeyCode==Keys.Home?0:topics.Count-1);e.Handled=true;return;}
             base.OnKeyDown(e);
         }
-        protected override void Dispose(bool disposing){if(disposing){preview.Dispose();animation.Dispose();}base.Dispose(disposing);}
+        protected override void Dispose(bool disposing){if(disposing){owner.ViewChanged-=UpdatePosition;owner.VisibleChanged-=UpdatePosition;owner.LocationChanged-=UpdatePosition;owner.SizeChanged-=UpdatePosition;preview.Dispose();animation.Dispose();}base.Dispose(disposing);}
     }
 
     public sealed partial class MainForm
     {
-        private ConversationScrollBar conversationScroll;
+        private ConversationNavigator conversationScroll;
         private void RefreshConversationTopics(ChatSession chat)
         {
             if(conversationScroll==null)return;
@@ -256,7 +263,7 @@ namespace MuseDeskNative
                 ChatMessage question=chat.messages[i];if(question.role!="user")continue;
                 Tuple<string,Control> row;if(!renderedRows.TryGetValue(question,out row))continue;
                 ChatMessage answer=chat.messages.Skip(i+1).TakeWhile(m=>m.role!="user").LastOrDefault(m=>m.role=="assistant");
-                string title=ConversationScrollBar.Excerpt(question.content,85);
+                string title=ConversationNavigator.Excerpt(question.content,85);
                 topics.Add(new ConversationTopic{Row=row.Item2,Title=title.Length>0?title:"Вопрос с вложением",Preview=()=>answer==null?"Ожидание ответа":string.IsNullOrWhiteSpace(answer.content)?"Ответ формируется…":answer.content});
             }
             conversationScroll.SetTopics(topics);
