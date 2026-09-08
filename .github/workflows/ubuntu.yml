@@ -8,7 +8,11 @@ permissions:
   contents: read
 jobs:
   ubuntu:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +23,11 @@ jobs:
         with:
           version: 11.19.0
       - name: Install build and UI dependencies
-        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libgbm1 libasound2t64 zstd espeak-ng
+        run: |
+          audio=libasound2
+          if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then audio=libasound2t64; fi
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libgbm1 "$audio" zstd espeak-ng
       - name: Install pinned application dependencies
         working-directory: macos
         run: |
@@ -39,10 +47,10 @@ jobs:
           MUSE_DESK_SMOKE_OUTPUT="$PWD/.build/ubuntu-smoke" xvfb-run -a /opt/Muse\ Desk/muse-desk --smoke-test
       - uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-release
+          name: ubuntu-release-${{ matrix.os }}
           path: dist-linux/*.deb
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ubuntu-ui-checks
+          name: ubuntu-ui-checks-${{ matrix.os }}
           path: .build/ubuntu-smoke
