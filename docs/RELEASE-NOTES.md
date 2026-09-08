@@ -1,10 +1,12 @@
-# Muse Desk 1.25.0 — Windows + Apple Silicon
+# Muse Desk 1.25.0 — Windows + Apple Silicon + Ubuntu
 
 > **Preview — предварительная версия.** Пометка Latest означает самый новый доступный выпуск, а не завершённую аппаратную приёмку. Ограничения подписи и совместимости описаны ниже.
 
-В нижней строке чата немного увеличен текст выбора доступа, рассуждений и модели. Чёрная кнопка отправки стала компактнее и выровнена по центру строки. Изменения применены в Windows и macOS.
+Добавлена **Ubuntu-версия (amd64, DEB)** с общим интерфейсом и логикой клиента macOS: проекты и чаты, потоковые ответы, рассуждения, вложения, инструменты с подтверждениями, навигатор тем, копирование, экспорт и озвучивание.
 
-Сохранены навигатор тем слева, общая прокрутка переписки, проверка памяти Mac перед скачиванием Glimmer и последовательная загрузка моделей.
+DEB устанавливает системные зависимости через APT. Встроенный мастер проверяет Ubuntu, RAM, NVIDIA, драйвер и место на диске, затем скачивает Linux-движок и Glimmer с проверкой SHA-256. При недостаточной памяти модель не скачивается. Движок ограничен одной моделью.
+
+Ubuntu: 22.04+, amd64; для автоматической установки Glimmer нужны 32 ГБ RAM, NVIDIA 24 ГБ VRAM, Compute Capability 7.0+, драйвер 550+ и 40 ГиБ места. AMD, Intel и CPU-only пока не входят в автоматическую установку Glimmer. [Инструкция Ubuntu](https://github.com/magamadovnurid/MuseDesk/blob/main/docs/UBUNTU.md). Реальная GPU-генерация на Ubuntu ещё требует аппаратной проверки.
 
 ## Выберите файл
 
@@ -14,6 +16,8 @@
 | Windows, только приложение без движка/модели | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-Windows-x64-App.zip) |
 | **macOS · Apple Silicon**, новая установка | **[Скачать DMG](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-1.25.0-macOS-AppleSilicon.dmg)** |
 | Mac, архив того же приложения | [Скачать ZIP](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-1.25.0-macOS-AppleSilicon.zip) |
+
+**Ubuntu:** [Скачать DEB](https://github.com/magamadovnurid/MuseDesk/releases/download/v1.25.0-preview.1/MuseDesk-1.25.0-Ubuntu-amd64.deb). Установка: `sudo apt install ./MuseDesk-1.25.0-Ubuntu-amd64.deb`.
 
 Контрольные суммы всех пакетов — **SHA256SUMS.txt**. Исходники доступны стандартными архивами GitHub. Веса модели не включены в пакеты: они скачиваются мастером настройки.
 

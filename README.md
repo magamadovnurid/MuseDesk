@@ -3,19 +3,20 @@
 # Muse Desk
 ### Нецензурированная модель. Локальный чат без VPN.
 
-**Muse Desk — приложение для Windows и macOS с локальной моделью Muse Glimmer Heretic (uncensored).**
+**Muse Desk — приложение для Windows, macOS и Ubuntu с локальной моделью Muse Glimmer Heretic (uncensored).**
 
 Обсуждайте идеи, пишите тексты и код, работайте с файлами и ведите проекты на своём компьютере.
 **После загрузки модели обычный чат работает в России без VPN, API-ключа и облачной подписки — даже без интернета.**
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-5c6670?style=flat-square)](#установка)
 [![Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-777777?style=flat-square)](docs/MACOS.md)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-amd64-E95420?style=flat-square)](docs/UBUNTU.md)
 [![Build](https://github.com/magamadovnurid/MuseDesk/actions/workflows/windows.yml/badge.svg)](https://github.com/magamadovnurid/MuseDesk/actions)
 [![Release](https://img.shields.io/github/v/release/magamadovnurid/MuseDesk?include_prereleases&style=flat-square)](https://github.com/magamadovnurid/MuseDesk/releases)
 
-[**Скачать для Windows · EXE**](https://github.com/magamadovnurid/MuseDesk/releases/latest/download/MuseDesk-Windows-x64-Setup.exe) · [**Скачать для macOS · Apple Silicon**](https://github.com/magamadovnurid/MuseDesk/releases/latest) · [Все релизы](https://github.com/magamadovnurid/MuseDesk/releases)
+[**Скачать для Windows · EXE**](https://github.com/magamadovnurid/MuseDesk/releases/latest/download/MuseDesk-Windows-x64-Setup.exe) · [**Скачать для macOS · Apple Silicon**](https://github.com/magamadovnurid/MuseDesk/releases/latest) · [**Скачать для Ubuntu · DEB**](https://github.com/magamadovnurid/MuseDesk/releases/latest) · [Все релизы](https://github.com/magamadovnurid/MuseDesk/releases)
 
-[Как установить](docs/INSTALLATION.md) · [Установка на Mac](docs/MACOS.md) · [Сообщить о проблеме](https://github.com/magamadovnurid/MuseDesk/issues)
+[Как установить](docs/INSTALLATION.md) · [Установка на Mac](docs/MACOS.md) · [Установка на Ubuntu](docs/UBUNTU.md) · [Сообщить о проблеме](https://github.com/magamadovnurid/MuseDesk/issues)
 
 </div>
 
@@ -25,7 +26,7 @@
 | **Работа в России без VPN** | После первоначального скачивания генерация выполняется локально. Для обычного чата не нужен доступ к зарубежному AI-сервису. |
 | **Ваши проекты на вашем компьютере** | Папки, отдельные чаты, вложения, потоковые ответы и инструменты с подтверждением действий. |
 
-**Для автоматической установки Glimmer:** Windows — NVIDIA от 24 ГБ видеопамяти и от 32 ГБ RAM; Mac — Apple Silicon и от 32 ГБ объединённой памяти. Нужно от 40 ГиБ свободного места. Мастер проверит оборудование перед загрузкой.
+**Для автоматической установки Glimmer:** Windows и Ubuntu — NVIDIA от 24 ГБ видеопамяти и от 32 ГБ RAM; Mac — Apple Silicon и от 32 ГБ объединённой памяти. Нужно от 40 ГиБ свободного места. Мастер проверит оборудование перед загрузкой.
 
 *Первоначальное скачивание требует доступа к GitHub и Hugging Face: доступность без VPN зависит от провайдера и региона. Веб-инструментам нужен интернет. Текущий выпуск — Preview; [статус и ограничения](#текущий-выпуск).*
 
@@ -64,11 +65,15 @@ Muse Desk объединяет локальную LLM и рабочее прос
 
 ## Установка
 
-**Каждый новый выпуск содержит обе платформы.** В [Releases](https://github.com/magamadovnurid/MuseDesk/releases) публикуются Windows EXE, Windows ZIP приложения, macOS DMG, macOS ZIP приложения и общий `SHA256SUMS.txt`. Исторические выпуски сохраняют исходный состав файлов.
+**Каждый новый выпуск содержит Windows, macOS и Ubuntu.** В [Releases](https://github.com/magamadovnurid/MuseDesk/releases) публикуются Windows EXE, Windows ZIP приложения, macOS DMG, macOS ZIP приложения, Ubuntu DEB и общий `SHA256SUMS.txt`. Исторические выпуски сохраняют исходный состав файлов.
 
 **Windows:** скачайте `MuseDesk-Windows-x64-Setup.exe` (в старом выпуске — `MuseDesk-Setup.exe`) и запустите. Установщик не требует Git, Node.js или сборки исходников. Windows App ZIP содержит только интерфейс; для полной новой установки используйте EXE.
 
 **Mac:** скачайте `MuseDesk-1.25.0-macOS-AppleSilicon.dmg`, перенесите приложение в Applications и пройдите встроенную настройку Glimmer. На Mac сканируются собственные параметры устройства, а не профиль NVIDIA из Windows. [Подробная инструкция для Apple Silicon](docs/MACOS.md).
+
+**Ubuntu:** скачайте `MuseDesk-1.25.0-Ubuntu-amd64.deb`, установите через системный установщик или `sudo apt install ./MuseDesk-1.25.0-Ubuntu-amd64.deb`. Встроенный мастер проверит RAM, GPU и драйвер перед скачиванием модели. [Инструкция и требования](docs/UBUNTU.md).
+
+Этапы Windows-установщика:
 
 1. Он определит Windows, объём RAM, совместимую NVIDIA GPU и свободное место на выбранном диске.
 2. Покажет подходящий профиль Glimmer и примерный объём скачивания.
