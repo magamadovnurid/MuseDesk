@@ -71,13 +71,34 @@ function renderTopics(messages){
   });
   topicObserver.observe(host);for(const row of host.children)topicObserver.observe(row);layoutTopics();
 }
+const transcriptExpansion=new Map();
+function keepExpanded(details,key,initial=false){details.open=transcriptExpansion.has(key)?transcriptExpansion.get(key):initial;details.addEventListener('toggle',()=>{if(details.isConnected)transcriptExpansion.set(key,details.open);});}
+function actionTrace(message,key){
+  const group=make('details','action-log');keepExpanded(group,key,true);
+  group.append(make('summary','',`Действия · ${message.actions.length}`));
+  const names={read_text_file:'Чтение файла',write_text_file:'Запись файла',list_directory:'Просмотр папки',list_files:'Просмотр папки',run_command:'Запуск команды',run_process:'Запуск команды',fetch_web_page:'Загрузка страницы'};
+  message.actions.forEach((action,index)=>{
+    const detail=make('details','action-entry');keepExpanded(detail,key+':'+index);
+    const summary=make('summary');const target=action.args?.path||action.args?.url||action.args?.executable||action.args?.command||'';
+    const name=make('span','action-name',(names[action.name]||action.name)+(target?' · '+target:''));name.title=target;
+    summary.append(name,make('span','action-state'+(action.status==='ошибка'?' error':''),action.status));detail.append(summary);
+    detail.append(make('pre','',JSON.stringify(action.args,null,2)+'\n'+(action.output||'')));group.append(detail);
+  });return group;
+}
 function renderMessages(){const host=$('messages'),oldTop=host.scrollTop;host.replaceChildren();const chat=active();if(!chat?.messages.length){renderTopics([]);const empty=make('div','empty');empty.append(icon('brand'),make('h1','','С чего начнём?'),make('p','',data.status.state==='ready'?'Опишите задачу — Muse поможет.':'Подготовьте модель и дождитесь статуса «Готово».'));host.append(empty);return;}
-  for(const message of chat.messages){const article=make('article','message-'+message.role);
+  for(const [messageIndex,message] of chat.messages.entries()){const article=make('article','message-'+message.role);
     if(message.role==='user'){article.append(make('div','bubble',message.content));for(const image of message.images||[]){const img=make('img','attached-image');img.src='data:image/jpeg;base64,'+image;img.alt='Вложение';article.append(img);}}
-    else{if(message.thinking){const details=make('details','thinking');details.append(make('summary','','Рассуждение'),make('p','',message.thinking));article.append(details);}article.append(markdown(message.content));
-      if(message.actions?.length){const details=make('details','action-log');details.append(make('summary','',`Действия · ${message.actions.length}`));for(const action of message.actions){details.append(make('p','',action.name+' · '+action.status),make('pre','',JSON.stringify(action.args,null,2)+'\n'+(action.output||'')));}article.append(details);}
-      if(message.error&&message.completedAt)article.append(make('p','error',message.error));}
-    const meta=make('div','message-meta');meta.append(make('span','',date(message.sentAt||message.completedAt)));if(message.tokensPerSecond)meta.append(make('span','',message.tokensPerSecond.toLocaleString('ru-RU',{maximumFractionDigits:1})+' токенов/с'));
+    else{
+      const key=chat.id+':'+messageIndex;
+      if(message.thinking){const details=make('details','thinking');keepExpanded(details,key+':thinking');details.append(make('summary','','Рассуждение'),make('p','',message.thinking));article.append(details);}
+      if(message.actions?.length)article.append(actionTrace(message,key+':actions'));
+      const final=message.finalSummary||'',content=message.content||'';
+      if(final&&content.endsWith(final)){const work=content.slice(0,-final.length).trim();if(work)article.append(markdown(work));}
+      if(message.completedAt)article.append(make('div','completion-state',message.failed||message.error?(message.error==='Ответ остановлен'?'Остановлено':'Не завершено'):'Готово'));
+      article.append(markdown(final||content));
+      if(message.error&&message.completedAt)article.append(make('p','error',message.error));
+    }
+    const meta=make('div','message-meta');meta.append(make('span','',date(message.role==='user'?message.sentAt:message.completedAt)));if(message.tokensPerSecond)meta.append(make('span','',message.tokensPerSecond.toLocaleString('ru-RU',{maximumFractionDigits:1})+' токенов/с'));
     const copy=button('',()=>api('copy',{text:message.content}),'icon');copy.append(icon('copy'));copy.title='Копировать';copy.setAttribute('aria-label','Копировать сообщение');meta.append(copy);article.append(meta);host.append(article);
   }
   if(followTail)host.scrollTop=host.scrollHeight;else host.scrollTop=oldTop;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.24.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.24.3.0")]
 
 namespace MuseDeskNative
 {
@@ -1656,6 +1656,20 @@ namespace MuseDeskNative
                     thoughts.Location = new Point(18,y); card.Controls.Add(thoughts); y += thoughts.Height+12;
                 }
             }
+            if (!string.IsNullOrWhiteSpace(message.toolLog) || ActionEntries(message).Count>0)
+            {
+                Panel log=null;int previousLogHeight=0;
+                log=BuildActionLog(message,cardWidth-36,delegate
+                {
+                    if(log==null)return;
+                    int delta=log.Height-previousLogHeight;
+                    foreach(Control child in card.Controls)if(child!=log && child.Top>=log.Top+previousLogHeight)child.Top+=delta;
+                    previousLogHeight=log.Height;card.Height+=delta;row.Height+=delta;
+                    if(messageList!=null)messageList.PerformLayout();
+                });
+                previousLogHeight=log.Height;
+                log.Location = new Point(18,y); card.Controls.Add(log); y += log.Height+10;
+            }
             if (!string.IsNullOrWhiteSpace(message.content))
             {
                 if(!user)
@@ -1680,23 +1694,9 @@ namespace MuseDeskNative
                 Label waiting = new Label { Text = message.thinking.Length>0 ? "Muse обдумывает ответ…" : "Muse готовит ответ…", AutoSize = true, Font = new Font("Segoe UI",10F), ForeColor = Muted, Location = new Point(18,y) };
                 card.Controls.Add(waiting); y += 32;
             }
-            if (!string.IsNullOrWhiteSpace(message.toolLog) || ActionEntries(message).Count>0)
-            {
-                Panel log=null;int previousLogHeight=0;
-                log=BuildActionLog(message,cardWidth-36,delegate
-                {
-                    if(log==null)return;
-                    int delta=log.Height-previousLogHeight;
-                    foreach(Control child in card.Controls)if(child!=log && child.Top>=log.Top+previousLogHeight)child.Top+=delta;
-                    previousLogHeight=log.Height;card.Height+=delta;row.Height+=delta;
-                    if(messageList!=null)messageList.PerformLayout();
-                });
-                previousLogHeight=log.Height;
-                log.Location = new Point(18,y); card.Controls.Add(log); y += log.Height+10;
-            }
             if(!user && !string.IsNullOrWhiteSpace(message.finalSummary))
             {
-                RoundedComposerPanel final=BuildTaskSummary(message,cardWidth-36);final.Location=new Point(18,y);card.Controls.Add(final);y+=final.Height+14;
+                Panel final=BuildTaskSummary(message,cardWidth-36);final.Location=new Point(18,y);card.Controls.Add(final);y+=final.Height+14;
             }
             if (!user && (message.tokensPerSecond>0 || message.canceled || message.failed))
             {

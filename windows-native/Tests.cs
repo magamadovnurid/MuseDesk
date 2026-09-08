@@ -484,6 +484,12 @@ namespace MuseDeskNative
 
         private void CheckTaskSummary(string output)
         {
+            using(Panel plain=BuildTaskSummary(new ChatMessage{role="assistant",finalSummary="Обычный ответ",changeNotes="Служебное описание учёта файлов"},600))
+            {
+                Check(!Descendants(plain).OfType<Label>().Any(l=>l.Text.Contains("файлов")),"Ordinary advice omits empty file sections and bookkeeping notes");
+            }
+            using(Panel stopped=BuildTaskSummary(new ChatMessage{role="assistant",finalSummary="Частичный ответ",canceled=true},600))
+                Check(stopped.Controls.OfType<Label>().Any(l=>l.Text=="Остановлено")&&!stopped.Controls.OfType<Label>().Any(l=>l.Text=="Готово"),"Canceled completion never displays a success label");
             int add,remove;
             Check(TaskChangeTracker.CountLines("a\nb\nc\n","a\nB\nc\nd\n",out add,out remove)&&add==2&&remove==1,"Line diff counts replacements as one deletion plus additions");
             Check(TaskChangeTracker.CountLines("a\r\nb\r\n","a\nb\n",out add,out remove)&&add==0&&remove==0,"Line-ending conversion does not fabricate changed code lines");
@@ -523,9 +529,13 @@ namespace MuseDeskNative
             using(Form preview=new Form{ClientSize=new Size(790,1000),Opacity=0,ShowInTaskbar=false,BackColor=Color.White})
             {
                 preview.Controls.Add(row);row.Location=new Point(20,20);preview.Show();
-                Check(Descendants(row).Any(c=>c.Name=="TaskSummary")&&Descendants(row).OfType<RichTextBox>().Count(c=>c.Text.Contains(restored.finalSummary))==1,"Completed reply displays one separate final-result card without duplicating its summary");
+                Check(Descendants(row).Any(c=>c.Name=="TaskSummary")&&Descendants(row).OfType<RichTextBox>().Count(c=>c.Text.Contains(restored.finalSummary))==1,"Completed reply displays its final text once");
+                Control completion=Descendants(row).Single(c=>c.Name=="TaskSummary");
+                Check(!(completion is RoundedComposerPanel)&&completion.Controls.OfType<Label>().Any(l=>l.Text=="Готово"),"Completion is an unframed transcript section labelled Ready");
+                Control actions=Descendants(row).Single(c=>c.Name=="ActionLog");
+                Check(actions.Top<completion.Top,"Action trace precedes the final answer");
                 Action<string> original=clipboardWriter;string copied=null;clipboardWriter=value=>copied=value;
-                try{Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Скопировать итог и изменения").PerformClick();Check(copied.Contains("index.html")&&copied.Contains("+2")&&copied.Contains(restored.finalSummary),"Final-result copy includes summary, paths and measured line counts");}finally{clipboardWriter=original;}
+                try{Descendants(row).OfType<RoundedButton>().Single(b=>b.AccessibleName=="Скопировать весь ответ").PerformClick();Check(copied.Contains("index.html")&&copied.Contains("+2")&&copied.Contains(restored.finalSummary),"Final-result copy includes summary, paths and measured line counts");}finally{clipboardWriter=original;}
                 DesignPreview.Capture(preview,Path.Combine(output,"task-summary.png"));preview.Close();
             }
             state.settings.toolsEnabled=previousTools;PermissionStore.Save(new List<SavedToolPermission>());

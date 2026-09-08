@@ -13,6 +13,16 @@ async function run(win,store,app){
     assert.equal(await script('document.documentElement.scrollWidth <= innerWidth'),true);
     await script('Promise.all([...document.images].map(img=>img.decode())).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     fs.writeFileSync(path.join(output,'macos-overview.png'),(await win.webContents.capturePage()).toPNG());
+    await script(`window.savedReply=structuredClone(active().messages[1]);Object.assign(active().messages[1],{content:'Файл обновлён. Проверка завершена.',finalSummary:'Файл обновлён. Проверка завершена.',completedAt:new Date().toISOString(),actions:[{name:'read_text_file',args:{path:'src/example.txt'},status:'завершено',output:'Исходный текст'},{name:'write_text_file',args:{path:'src/example.txt'},status:'завершено',output:'Файл обновлён'}]});renderMessages();`);
+    assert.equal(await script('document.querySelector(".completion-state").textContent'),'Готово');
+    assert.equal(await script('document.querySelector(".action-log").compareDocumentPosition(document.querySelector(".completion-state")) & Node.DOCUMENT_POSITION_FOLLOWING'),4);
+    assert.equal(await script('getComputedStyle(document.querySelector(".action-log")).borderTopWidth'),'0px');
+    assert.equal(await script('document.querySelectorAll(".action-entry").length'),2);
+    await script('document.querySelector(".action-entry").open=true');await new Promise(r=>setTimeout(r,50));await script('renderMessages()');
+    assert.equal(await script('document.querySelector(".action-entry").open'),true);
+    fs.writeFileSync(path.join(output,'macos-completion.png'),(await win.webContents.capturePage()).toPNG());
+    await script('active().messages[1].failed=true;renderMessages()');assert.equal(await script('document.querySelector(".completion-state").textContent'),'Не завершено');
+    await script('active().messages[1]=window.savedReply;delete window.savedReply;renderMessages()');
     await script(`active().messages.push({role:'user',content:'Как быстро найти материал?'},{role:'assistant',content:'Используйте поиск и метки тем.\\n'+('Подробная строка ответа.\\n'.repeat(240))},{role:'user',content:'Что добавить на главную страницу?'},{role:'assistant',content:'Описание проекта и ссылки на разделы.'});renderMessages();`);
     await script('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
     assert.equal(await script('document.querySelectorAll("#topic-nav button").length'),3);

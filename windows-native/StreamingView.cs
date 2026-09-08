@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -46,9 +46,11 @@ namespace MuseDeskNative
 
         private void LayoutStreamRow(StreamView view)
         {
-            int bottom=view.Body.Visible?view.Copy.Bottom+8:36;
-            if(view.Actions!=null && view.Actions.Height>0){view.Actions.Location=new Point(18,bottom);bottom=view.Actions.Bottom+8;}
-            view.Row.Height=Math.Max(62,bottom);
+            int top=36;
+            if(view.Actions!=null && view.Actions.Height>0){view.Actions.Location=new Point(18,top);top=view.Actions.Bottom+12;}
+            view.Body.Top=top;view.Copy.Location=new Point(14,view.Body.Bottom+8);
+            view.Row.Height=Math.Max(62,view.Body.Visible?view.Copy.Bottom+8:top);
+
         }
 
         private void UpdateStreamActions(StreamView view)

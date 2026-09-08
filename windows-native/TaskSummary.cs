@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -156,16 +156,17 @@ namespace MuseDeskNative
             if(!string.IsNullOrEmpty(message.changeNotes))text.Append("\r\n").Append(message.changeNotes);
             return text.ToString();
         }
-        private RoundedComposerPanel BuildTaskSummary(ChatMessage message,int width)
+        private Panel BuildTaskSummary(ChatMessage message,int width)
         {
-            RoundedComposerPanel frame=new RoundedComposerPanel{Name="TaskSummary",AccessibleName="Итог работы",Width=width,Radius=14,BackColor=Surface,BorderColor=Line};
-            frame.Controls.Add(new Label{Text="Итог",Font=new Font("Segoe UI Semibold",11F),ForeColor=TextInk,Location=new Point(16,15),AutoSize=true});
-            RoundedButton copy=MakeCopyButton(()=>SummaryCopyText(message),"Скопировать итог и изменения",Surface);copy.Location=new Point(width-copy.Width-10,8);frame.Controls.Add(copy);
-            RichTextBox summary=MakeReadableText(message.finalSummary??"",width-32,new Font("Segoe UI",10.5F),Surface,TextInk);
-            summary.AccessibleName="Итоговый ответ";summary.Location=new Point(16,48);ApplyMarkdownStyles(summary);frame.Controls.Add(summary);FitRichText(summary);int y=summary.Bottom+12;
+            Panel frame=new Panel{Name="TaskSummary",AccessibleName="Завершение ответа",Width=width,BackColor=Surface};
+            string status=message.canceled?"Остановлено":message.failed?"Не завершено":"Готово";
+            int y=AddAnswerContent(frame,message.finalSummary??"",width,30);
+            foreach(Control child in frame.Controls)child.Left-=18;
+            RichTextBox first=frame.Controls.OfType<RichTextBox>().FirstOrDefault();if(first!=null)first.AccessibleName="Итоговый ответ";
+            frame.Controls.Add(new Label{Text=status,Font=new Font("Segoe UI",9F),ForeColor=Muted,Location=new Point(0,0),AutoSize=true});
             List<FileChangeSummary> files=message.fileChanges??new List<FileChangeSummary>();
-            Label heading=new Label{Text=files.Count==0?"Изменений файлов не зафиксировано":"Изменённые файлы · "+files.Count,Font=new Font("Segoe UI",9F),ForeColor=Muted,AutoSize=true,Location=new Point(16,y)};frame.Controls.Add(heading);y+=30;
-            FlowLayoutPanel list=new FlowLayoutPanel{Location=new Point(12,y),Width=width-24,Height=files.Count*64,BackColor=Surface,AutoScroll=false,FlowDirection=FlowDirection.TopDown,WrapContents=false};
+            Label heading=new Label{Text="Изменённые файлы · "+files.Count,Font=new Font("Segoe UI",9F),ForeColor=Muted,AutoSize=true,Location=new Point(0,y)};if(files.Count>0){frame.Controls.Add(heading);y+=30;}else heading.Dispose();
+            FlowLayoutPanel list=new FlowLayoutPanel{Location=new Point(0,y),Width=width,Height=files.Count*64,BackColor=Surface,AutoScroll=false,FlowDirection=FlowDirection.TopDown,WrapContents=false};
             if(files.Count>0)frame.Controls.Add(list);
             foreach(FileChangeSummary file in files)
             {
@@ -178,9 +179,10 @@ namespace MuseDeskNative
                 list.Controls.Add(row);
             }
             y+=list.Height;
-            if(!string.IsNullOrWhiteSpace(message.changeNotes))
+            if(files.Count==0)list.Dispose();
+            if(files.Count>0 && !string.IsNullOrWhiteSpace(message.changeNotes))
             {
-                Label note=new Label{Text=message.changeNotes,Font=new Font("Segoe UI",8.5F),ForeColor=Muted,Location=new Point(16,y),Width=width-32,Height=MeasureTextHeight(message.changeNotes,width-32,new Font("Segoe UI",8.5F),160)};frame.Controls.Add(note);y+=note.Height+8;
+                Label note=new Label{Text=message.changeNotes,Font=new Font("Segoe UI",8.5F),ForeColor=Muted,Location=new Point(0,y),Width=width,Height=MeasureTextHeight(message.changeNotes,width-32,new Font("Segoe UI",8.5F),160)};frame.Controls.Add(note);y+=note.Height+8;
             }
             frame.Height=y+12;return frame;
         }

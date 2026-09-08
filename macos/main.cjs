@@ -49,7 +49,7 @@ async function send({id,text,attachments=[]}){
       }});
       if(!segment.tool_calls.length)delete segment.tool_calls;if(!segment.thinking)delete segment.thinking;
       wire.push(segment);answer.wire.push(segment);
-      if(!segment.tool_calls?.length){answer.failed=false;delete answer.error;break;}
+      if(!segment.tool_calls?.length){answer.finalSummary=segment.content;answer.failed=false;delete answer.error;break;}
       if(!settings.tools||!project)throw Error('Модель запросила недоступный инструмент');
       if(segment.tool_calls.length>8)throw Error('Модель запросила слишком много действий за один шаг');
       for(const call of segment.tool_calls){

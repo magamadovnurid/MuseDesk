@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
@@ -151,20 +151,18 @@ namespace MuseDeskNative
                 {
                     bool open=expanded.Contains(entry.Index);
                     Panel row=new Panel{Name="ActionRow",AccessibleName=ActionTitle(entry.Name),Location=new Point(0,y),Width=width,BackColor=Surface};
-                    RoundedButton toggle=(RoundedButton)MakeButton(ActionTitle(entry.Name),Surface,TextInk,Math.Max(100,width-150),28);
-                    toggle.IconName=ActionIcon(entry.Name);toggle.IconPixelSize=16;toggle.IconTint=Muted;toggle.TextAlign=ContentAlignment.MiddleLeft;toggle.Font=new Font("Segoe UI",9.5F);toggle.AccessibleName="Раскрыть действие "+(entry.Index+1);tips.SetToolTip(toggle,entry.Name);
+                    RoundedButton toggle=(RoundedButton)MakeButton(ActionTitle(entry.Name)+(entry.Target.Length>0?" · "+Compact(entry.Target,100):""),Surface,Muted,Math.Max(100,width-150),28);
+                    toggle.IconName=ActionIcon(entry.Name);toggle.IconPixelSize=16;toggle.IconTint=Muted;toggle.TextAlign=ContentAlignment.MiddleLeft;toggle.Font=new Font("Segoe UI",9.5F);toggle.AccessibleName="Раскрыть действие "+(entry.Index+1);tips.SetToolTip(toggle,ActionTitle(entry.Name)+(entry.Target.Length>0?"\n"+entry.Target:""));
                     toggle.Click+=delegate{if(!expanded.Add(entry.Index))expanded.Remove(entry.Index);rebuild();};row.Controls.Add(toggle);
                     Label stateLabel=new Label{Name="ActionStatus",Text=entry.Status,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",8.5F),ForeColor=entry.Status.StartsWith("Ошибка")?Color.FromArgb(185,45,45):Muted,Location=new Point(width-151,5),Size=new Size(114,20)};row.Controls.Add(stateLabel);
                     RoundedButton itemCopy=MakeCopyButton(()=>ActionCopyText(entry),"Скопировать действие "+(entry.Index+1),Surface);itemCopy.Location=new Point(width-32,0);row.Controls.Add(itemCopy);
                     int bottom=32;
-                    string preview=entry.Target.Length>0?entry.Target:entry.Output.Split(new[]{'\r','\n'},StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()??"";
-                    if(preview.Length>0){Label detail=new Label{Text=(open?"▾ ":"▸ ")+Compact(preview,200),AutoEllipsis=true,Font=new Font(entry.Name=="run_process"?"Consolas":"Segoe UI",9F),ForeColor=Muted,Location=new Point(30,31),Size=new Size(width-40,23),Cursor=Cursors.Hand};detail.Click+=delegate{if(!expanded.Add(entry.Index))expanded.Remove(entry.Index);rebuild();};tips.SetToolTip(detail,entry.Target);row.Controls.Add(detail);bottom=57;}
                     if(open)
                     {
                         if(entry.Input.Length>0)bottom=AddActionDetail(row,"Параметры",entry.Input,width,bottom,true);
                         bottom=AddActionDetail(row,entry.HasResult?"Результат":"Статус",entry.HasResult?(entry.Output.Length==0?"Действие завершено без текстового вывода.":entry.Output):entry.Status,width,bottom,entry.Name=="run_process"||entry.Name=="read_text_file"||entry.Name=="list_directory");
                     }
-                    row.Height=bottom+6;row.Paint+=delegate(object sender,PaintEventArgs e){using(Pen line=new Pen(Line))e.Graphics.DrawLine(line,30,row.Height-1,row.Width-1,row.Height-1);};frame.Controls.Add(row);y+=row.Height+5;
+                    row.Height=bottom+2;frame.Controls.Add(row);y+=row.Height+5;
                 }
                 frame.Height=entries.Count==0?0:y;frame.ResumeLayout(true);if(resized!=null)resized();
             };
