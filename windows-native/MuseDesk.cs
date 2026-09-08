@@ -23,8 +23,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Нативная лаборатория Muse Glimmer 30B Heretic")]
 [assembly: System.Reflection.AssemblyCompany("Muse Desk")]
 [assembly: System.Reflection.AssemblyProduct("Muse Desk")]
-[assembly: System.Reflection.AssemblyVersion("1.24.5.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.24.5.0")]
+[assembly: System.Reflection.AssemblyVersion("1.24.6.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.24.6.0")]
 
 namespace MuseDeskNative
 {
@@ -408,9 +408,10 @@ namespace MuseDeskNative
             Panel voiceButtons=new Panel {Dock=DockStyle.Right,Width=80,Height=42,BackColor=Surface};
             micButton.Location=new Point(0,3);speakButton.Location=new Point(38,3);voiceButtons.Controls.AddRange(new Control[]{micButton,speakButton});toolbar.Controls.Add(voiceButtons);
             UpdateCapabilityUi();
-            sendButton = new RoundedButton { Text = "↑", BackColor = Iris, ForeColor = Color.White, Width = 42, Height = 42, Radius = 21, Font = new Font("Segoe UI Semibold",17F), AccessibleName = "Отправить сообщение", Dock = DockStyle.Right, Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, TabStop = true };
+            Panel sendSlot = new Panel { Dock = DockStyle.Right, Width = 38, BackColor = Surface };
+            sendButton = new RoundedButton { Text = "↑", BackColor = Iris, ForeColor = Color.White, Width = 36, Height = 36, Radius = 18, Font = new Font("Segoe UI Semibold",15F), AccessibleName = "Отправить сообщение", Location = new Point(2,3), Cursor = Cursors.Hand, FlatStyle = FlatStyle.Flat, TabStop = true };
             sendButton.Click += async delegate { await SendOrStopAsync(); };
-            toolbar.Controls.Add(sendButton);
+            sendSlot.Controls.Add(sendButton);toolbar.Controls.Add(sendSlot);
             Panel editor = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Padding = new Padding(1,0,3,8) };
             box.Controls.Add(editor); editor.BringToFront();
             input = new TextBox { AccessibleName = "Сообщение Muse", Dock = DockStyle.Fill, Multiline = true, AcceptsReturn = true, BorderStyle = BorderStyle.None, BackColor = Surface, ForeColor = TextInk, Font = new Font("Segoe UI",10.5F), ScrollBars = ScrollBars.None };
@@ -465,7 +466,7 @@ namespace MuseDeskNative
 
         private Button MakeComposerButton(string text,int width)
         {
-            RoundedButton button = new RoundedButton { Text=text, Width=width, Height=36, Radius=10, BackColor=Surface, ForeColor=Muted, Font=new Font("Segoe UI",9F), Cursor=Cursors.Hand, AccessibleName=text, TabStop=true, Margin=new Padding(0,3,6,3) };
+            RoundedButton button = new RoundedButton { Text=text, Width=width, Height=36, Radius=10, BackColor=Surface, ForeColor=Muted, Font=new Font("Segoe UI",9.75F), Cursor=Cursors.Hand, AccessibleName=text, TabStop=true, Margin=new Padding(0,3,6,3) };
             return button;
         }
 

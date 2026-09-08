@@ -182,7 +182,7 @@ namespace MuseDeskNative
             CheckScrollBehavior();
             CheckConversationNavigation(output);
             Check(center.Width>950 && sidebar.Width==254,"Native sidebar and chat layout");
-            Check(input.Height>=24 && sendButton.Width==42,"Composer has editable area and send button");
+            Check(input.Height>=24 && sendButton.Width==36 && sendButton.Height==36,"Composer has editable area and compact circular send button");
             Check(sidebar.BackColor.GetBrightness()>0.9F && center.BackColor==Color.White && sendButton.BackColor.R==sendButton.BackColor.G,"Codex-style neutral palette and light workspace");
             sidebarToggle.PerformClick();PerformLayout();
             Check(!sidebar.Visible && center.Width>1200,"Sidebar can collapse without losing the editor");
